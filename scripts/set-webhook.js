@@ -19,8 +19,8 @@ if (!rawAppUrl) {
 
 const appUrl = rawAppUrl.replace(/^["']|["']$/g, '').replace(/\/$/, '').trim();
 
-// Supports /api/webhook/telegram or /api/webhook/${token}
-const webhookUrl = `${appUrl}/api/webhook/telegram`;
+// Uses multi-tenant tokenized route
+const webhookUrl = `${appUrl}/api/webhook/${token}`;
 
 const url = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
 

@@ -14,7 +14,7 @@ function setUserLang(tgId: string, lang: string) {
 
 export async function handleTelegramWebhook(req: Request, explicitToken?: string) {
   try {
-    const rawEnvToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
+    const rawEnvToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '8426826305:AAFOLp579bWZpwGZuYJyo1KDy36DM8WD3c8';
     const cleanEnvToken = rawEnvToken.replace(/^["']|["']$/g, '').trim();
     const token = (explicitToken || cleanEnvToken).replace(/^["']|["']$/g, '').trim();
 
