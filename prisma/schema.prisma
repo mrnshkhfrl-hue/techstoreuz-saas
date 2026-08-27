@@ -1,0 +1,132 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String   @id @default(uuid())
+  telegramId String   @unique
+  phone      String?
+  name       String?
+  address    String?
+  isPremium  Boolean  @default(false)
+  
+  ownedShops Shop[]      @relation("ShopOwner")
+  adminIn    ShopAdmin[]
+  bookings   Booking[]
+}
+
+model Shop {
+  id           String   @id @default(uuid())
+  ownerId      String
+  owner        User     @relation("ShopOwner", fields: [ownerId], references: [id])
+  name         String
+  tgBotToken   String   @unique
+  
+  currencyRate Float    @default(12800)
+  tgLink       String?
+  instaLink    String?
+  aboutText    String?
+  
+  admins       ShopAdmin[]
+  branches     Branch[]
+  newProducts  NewProductTemplate[]
+  usedProducts UsedProduct[]
+  bookings     Booking[]
+}
+
+model ShopAdmin {
+  id       String  @id @default(uuid())
+  shopId   String
+  shop     Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role    @default(MANAGER)
+}
+
+enum Role {
+  OWNER
+  MANAGER
+}
+
+model Branch {
+  id       String @id @default(uuid())
+  shopId   String
+  shop     Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name     String
+  address  String
+  phone    String?
+}
+
+model NewProductTemplate {
+  id          String   @id @default(uuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  title       String   
+  basePrice   Float
+  variants    ProductVariant[]
+}
+
+model ProductVariant {
+  id         String   @id @default(uuid())
+  templateId String
+  template   NewProductTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  color      String
+  storage    String   
+  simType    String   
+  price      Float
+  stock      Int      @default(0)
+
+  bookings   Booking[]
+}
+
+model UsedProduct {
+  id            String   @id @default(uuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  title         String   
+  batteryHealth Int      
+  region        String   
+  hasBox        Boolean  @default(false)
+  defects       String?  
+  price         Float
+  status        ItemStatus @default(AVAILABLE)
+  
+  bookings      Booking[]
+}
+
+enum ItemStatus {
+  AVAILABLE
+  BOOKED
+  SOLD_OFFLINE
+  SOLD_ONLINE
+}
+
+model Booking {
+  id            String   @id @default(uuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  usedProductId String?
+  usedProduct   UsedProduct? @relation(fields: [usedProductId], references: [id])
+  
+  variantId     String? 
+  variant       ProductVariant? @relation(fields: [variantId], references: [id])
+  
+  status        BookingStatus @default(PENDING)
+  expiresAt     DateTime 
+  createdAt     DateTime @default(now())
+}
+
+enum BookingStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
