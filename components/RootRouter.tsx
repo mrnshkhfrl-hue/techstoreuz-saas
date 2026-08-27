@@ -20,9 +20,10 @@ export default function RootRouter() {
     setMounted(true);
   }, []);
 
-  // SuperAdmin IDs list from env or fallback
+  // SuperAdmin check with fallbacks
   const isSuperAdmin = useMemo(() => {
-    if (!user?.telegramId) return false;
+    const rawId = user?.telegramId || (typeof window !== 'undefined' ? (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id : null);
+    if (!rawId) return false;
     
     const superAdminRaw = 
       process.env.NEXT_PUBLIC_SUPERADMIN_IDS || 
@@ -34,7 +35,7 @@ export default function RootRouter() {
       .map((id) => id.trim())
       .filter(Boolean);
 
-    return superAdminIds.includes(String(user.telegramId));
+    return superAdminIds.includes(String(rawId));
   }, [user?.telegramId]);
 
   if (!mounted || !isReady) {

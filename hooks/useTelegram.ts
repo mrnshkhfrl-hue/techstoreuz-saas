@@ -33,7 +33,7 @@ export interface UseTelegramReturn {
   /** Whether the SDK has been initialized */
   isReady: boolean;
   /** Raw Telegram WebApp object (null outside Telegram) */
-  webApp: WebApp | null;
+  webApp: any | null;
   /** Haptic feedback methods (no-op outside Telegram) */
   haptic: TelegramHaptic;
   /** Expand the WebApp to full screen */
@@ -53,12 +53,6 @@ export interface UseTelegramReturn {
   /** Color scheme from Telegram ('light' | 'dark') */
   colorScheme: 'light' | 'dark';
 }
-
-// ─── WebApp type from @twa-dev/sdk ──────────────────────────────────────────
-
-// We dynamically import @twa-dev/sdk only on the client.
-// Define a minimal type alias so TS doesn't complain.
-type WebApp = typeof import('@twa-dev/sdk').default;
 
 // ─── Mock data for local development ────────────────────────────────────────
 
@@ -84,32 +78,16 @@ function isLocalhost(): boolean {
   );
 }
 
-/**
- * No-op haptic — used as fallback outside Telegram.
- * Logs calls in development for debugging convenience.
- */
 const noopHaptic: TelegramHaptic = {
-  impactOccurred: (style) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Telegram Mock] haptic.impactOccurred("${style}")`);
-    }
-  },
-  notificationOccurred: (type) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Telegram Mock] haptic.notificationOccurred("${type}")`);
-    }
-  },
-  selectionChanged: () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Telegram Mock] haptic.selectionChanged()');
-    }
-  },
+  impactOccurred: () => {},
+  notificationOccurred: () => {},
+  selectionChanged: () => {},
 };
 
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useTelegram(): UseTelegramReturn {
-  const [webApp, setWebApp] = useState<WebApp | null>(null);
+  const [webApp, setWebApp] = useState<any | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   // Initialize SDK on mount (client-only)
@@ -118,23 +96,29 @@ export function useTelegram(): UseTelegramReturn {
 
     async function init() {
       try {
-        // Dynamic import — only runs on client, tree-shakes on server
+        if (typeof window !== 'undefined') {
+          const directTg = (window as any).Telegram?.WebApp;
+          if (directTg) {
+            directTg.ready();
+            directTg.expand();
+            if (!cancelled) setWebApp(directTg);
+          }
+        }
+
         const WebAppModule = await import('@twa-dev/sdk');
         const tg = WebAppModule.default;
 
         if (cancelled) return;
 
-        // Check if we're actually inside Telegram
-        // The SDK object exists, but initData will be empty outside Telegram
-        if (tg && tg.initData) {
+        if (tg) {
+          try {
+            tg.ready();
+            tg.expand();
+          } catch {}
           setWebApp(tg);
-        } else if (!isLocalhost()) {
-          // Not Telegram, not localhost — still set the SDK for potential use
-          console.warn('[useTelegram] WebApp SDK loaded but no initData. Running in fallback mode.');
         }
       } catch (err) {
-        // SDK import failed (e.g., SSR or unsupported environment)
-        console.warn('[useTelegram] @twa-dev/sdk import failed, using fallback:', err);
+        console.warn('[useTelegram] SDK load fallback:', err);
       } finally {
         if (!cancelled) {
           setIsReady(true);
@@ -151,113 +135,92 @@ export function useTelegram(): UseTelegramReturn {
 
   // ── Derived state ──
 
-  const isTelegram = webApp !== null && !!webApp.initData;
+  const rawTg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp || webApp : webApp;
+  const tgUser = rawTg?.initDataUnsafe?.user;
+
+  const isTelegram = Boolean(rawTg && (rawTg.initData || tgUser));
 
   const user: TelegramWebAppUser | null = useMemo(() => {
-    if (isTelegram && webApp) {
-      const tgUser = webApp.initDataUnsafe?.user;
-      if (tgUser) {
-        return {
-          telegramId: tgUser.id,
-          firstName: tgUser.first_name,
-          username: tgUser.username ?? '',
-          lastName: tgUser.last_name,
-          languageCode: tgUser.language_code,
-          photoUrl: tgUser.photo_url,
-        };
-      }
+    if (tgUser && tgUser.id) {
+      return {
+        telegramId: Number(tgUser.id),
+        firstName: tgUser.first_name || '',
+        username: tgUser.username || '',
+        lastName: tgUser.last_name || '',
+        languageCode: tgUser.language_code || 'ru',
+        photoUrl: tgUser.photo_url || undefined,
+      };
     }
     // Fallback: return mock user on localhost, null otherwise
     if (isLocalhost()) {
       return MOCK_USER;
     }
     return null;
-  }, [isTelegram, webApp]);
+  }, [tgUser]);
 
-  const initData = isTelegram && webApp ? webApp.initData : '';
+  const initData = rawTg?.initData || '';
 
   const colorScheme: 'light' | 'dark' = useMemo(() => {
-    if (isTelegram && webApp) {
-      return webApp.colorScheme || 'light';
+    if (rawTg?.colorScheme) {
+      return rawTg.colorScheme;
     }
-    // Fallback: check system preference
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches) {
       return 'dark';
     }
-    return 'light';
-  }, [isTelegram, webApp]);
+    return 'dark';
+  }, [rawTg]);
 
   // ── Haptic feedback ──
 
   const haptic: TelegramHaptic = useMemo(() => {
-    if (isTelegram && webApp?.HapticFeedback) {
+    if (rawTg?.HapticFeedback) {
       return {
         impactOccurred: (style: HapticImpactStyle) => {
-          webApp.HapticFeedback.impactOccurred(style);
+          try { rawTg.HapticFeedback.impactOccurred(style); } catch {}
         },
         notificationOccurred: (type: HapticNotificationType) => {
-          webApp.HapticFeedback.notificationOccurred(type);
+          try { rawTg.HapticFeedback.notificationOccurred(type); } catch {}
         },
         selectionChanged: () => {
-          webApp.HapticFeedback.selectionChanged();
+          try { rawTg.HapticFeedback.selectionChanged(); } catch {}
         },
       };
     }
     return noopHaptic;
-  }, [isTelegram, webApp]);
-
-  // ── Native methods ──
+  }, [rawTg]);
 
   const expand = useCallback(() => {
-    if (isTelegram && webApp) {
-      webApp.expand();
-    } else if (process.env.NODE_ENV === 'development') {
-      console.log('[Telegram Mock] expand()');
-    }
-  }, [isTelegram, webApp]);
+    try { rawTg?.expand(); } catch {}
+  }, [rawTg]);
 
   const ready = useCallback(() => {
-    if (isTelegram && webApp) {
-      webApp.ready();
-    } else if (process.env.NODE_ENV === 'development') {
-      console.log('[Telegram Mock] ready()');
-    }
-  }, [isTelegram, webApp]);
+    try { rawTg?.ready(); } catch {}
+  }, [rawTg]);
 
   const close = useCallback(() => {
-    if (isTelegram && webApp) {
-      webApp.close();
-    } else if (process.env.NODE_ENV === 'development') {
-      console.log('[Telegram Mock] close()');
-    }
-  }, [isTelegram, webApp]);
+    try { rawTg?.close(); } catch {}
+  }, [rawTg]);
 
   const showBackButton = useCallback(() => {
-    if (isTelegram && webApp) {
-      webApp.BackButton.show();
-    }
-  }, [isTelegram, webApp]);
+    try { rawTg?.BackButton?.show(); } catch {}
+  }, [rawTg]);
 
   const hideBackButton = useCallback(() => {
-    if (isTelegram && webApp) {
-      webApp.BackButton.hide();
-    }
-  }, [isTelegram, webApp]);
+    try { rawTg?.BackButton?.hide(); } catch {}
+  }, [rawTg]);
 
   const onBackButtonClicked = useCallback(
     (cb: () => void) => {
-      if (isTelegram && webApp) {
-        webApp.BackButton.onClick(cb);
-      }
+      try { rawTg?.BackButton?.onClick(cb); } catch {}
     },
-    [isTelegram, webApp]
+    [rawTg]
   );
 
   return {
     user,
     isTelegram,
     isReady,
-    webApp,
+    webApp: rawTg,
     haptic,
     expand,
     ready,

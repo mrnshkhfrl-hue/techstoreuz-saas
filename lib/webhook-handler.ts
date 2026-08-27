@@ -1,16 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// In-memory language cache per telegram ID
-const langCache = new Map<string, string>();
-
-function getUserLang(tgId: string): string {
-  return langCache.get(tgId) || 'uz';
-}
-
-function setUserLang(tgId: string, lang: string) {
-  langCache.set(tgId, lang);
-}
+// In-memory cache for user registration states
+const userLangCache = new Map<string, string>();
+const userRegisteredCache = new Set<string>();
 
 export async function handleTelegramWebhook(req: Request, explicitToken?: string) {
   try {
@@ -19,7 +12,6 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     const token = (explicitToken || cleanEnvToken).replace(/^["']|["']$/g, '').trim();
 
     if (!token) {
-      console.error('[Webhook] Missing Telegram Bot Token');
       return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
     }
 
@@ -39,7 +31,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
     const tgId = String(userId);
 
-    // 1. Check SuperAdmin status immediately
+    // 1. SuperAdmin check
     const superAdminRaw =
       process.env.SUPERADMIN_IDS ||
       process.env.NEXT_PUBLIC_SUPERADMIN_IDS ||
@@ -65,7 +57,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     const storeUrl = appUrl;
     const storeName = process.env.NEXT_PUBLIC_STORE_NAME || 'Techstoreuz';
 
-    // 2. High-speed Telegram send function
+    // 2. High-speed Telegram API sendMessage
     const sendTg = async (payload: {
       text: string;
       reply_markup?: any;
@@ -86,7 +78,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       }
     };
 
-    // Helper to build Main Menu Keyboard
+    // Helper: Build Main Menu
     const buildMainMenuKeyboard = (lang: string) => {
       const isUz = lang === 'uz';
       const openBtnText = isUz ? `🛍 ${storeName} do'konini ochish` : `🛍 Открыть ${storeName}`;
@@ -118,7 +110,6 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       };
     };
 
-    // Helper to send Main Menu
     const sendMainMenu = async (lang: string) => {
       const isUz = lang === 'uz';
       const welcomeMsg = isUz
@@ -131,25 +122,24 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       });
     };
 
-    // ── SUPERADMIN INSTANT FLOW ───────────────────────────────────────────
-    if (isOwner) {
-      if (text.startsWith('/start') || text === '👑 Панель управления (SaaS)') {
-        await sendMainMenu(getUserLang(tgId));
-        return NextResponse.json({ ok: true });
-      }
-    }
+    const currentLang = userLangCache.get(tgId) || 'uz';
 
-    // ── STEP A: Contact Sharing Handler ───────────────────────────────────
+    // ── STEP A: Contact Shared (Phone number captured) ───────────────────
     if (contact && contact.phone_number) {
       const phone = contact.phone_number;
-      // Update phone in DB asynchronously
+      userRegisteredCache.add(tgId);
+
+      // Async DB write
       prisma.user.upsert({
         where: { telegramId: tgId },
         update: { phone },
-        create: { telegramId: tgId, phone, name: `${from?.first_name || ''} ${from?.last_name || ''}`.trim() || 'User' },
-      }).catch(e => console.error('[User Upsert Error]', e));
+        create: {
+          telegramId: tgId,
+          phone,
+          name: `${from?.first_name || ''} ${from?.last_name || ''}`.trim() || 'User',
+        },
+      }).catch(e => console.error('[User Phone Save Error]', e));
 
-      const currentLang = getUserLang(tgId);
       const successText = currentLang === 'uz'
         ? '✅ Telefon raqamingiz muvaffaqiyatli saqlandi!'
         : '✅ Ваш номер телефона успешно сохранён!';
@@ -162,19 +152,26 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     // ── STEP B: Language Selection ────────────────────────────────────────
     if (text === "🇺🇿 O'zbekcha" || text === '🇷🇺 Русский') {
       const newLang = text.includes("O'zbekcha") ? 'uz' : 'ru';
-      setUserLang(tgId, newLang);
+      userLangCache.set(tgId, newLang);
 
-      // Check DB for existing user phone
-      const user = await prisma.user.findUnique({ where: { telegramId: tgId } }).catch(() => null);
+      // Check if already registered
+      let isRegistered = userRegisteredCache.has(tgId);
+      if (!isRegistered) {
+        const dbUser = await prisma.user.findUnique({ where: { telegramId: tgId } }).catch(() => null);
+        if (dbUser?.phone) {
+          userRegisteredCache.add(tgId);
+          isRegistered = true;
+        }
+      }
 
-      if (user?.phone || isOwner) {
+      if (isRegistered) {
         const langAck = newLang === 'uz' ? "✅ Til saqlandi: O'zbekcha" : '✅ Язык сохранён: Русский';
         await sendTg({ text: langAck });
         await sendMainMenu(newLang);
         return NextResponse.json({ ok: true });
       }
 
-      // Prompt for Name & Surname
+      // Ask for Name & Surname
       const askName = newLang === 'uz'
         ? '📝 Iltimos, ism va familiyangizni kiriting:'
         : '📝 Пожалуйста, введите ваше имя и фамилию:';
@@ -186,71 +183,76 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       return NextResponse.json({ ok: true });
     }
 
-    // ── STEP C: Registration check for regular users ─────────────────────
-    if (!isOwner) {
-      const user = await prisma.user.findUnique({ where: { telegramId: tgId } }).catch(() => null);
+    // ── STEP C: Registration check (Check if user has phone) ──────────────
+    let isUserRegistered = userRegisteredCache.has(tgId);
+    if (!isUserRegistered) {
+      const dbUser = await prisma.user.findUnique({ where: { telegramId: tgId } }).catch(() => null);
+      if (dbUser?.phone) {
+        userRegisteredCache.add(tgId);
+        isUserRegistered = true;
+      }
+    }
 
-      if (!user || !user.phone) {
-        if (text.startsWith('/start')) {
-          const welcomeText = `👋 Xush kelibsiz <b>${storeName}</b> do'koniga!\n\nДобро пожаловать в <b>${storeName}</b>!\n\nIltimos, tilni tanlang / Пожалуйста, выберите язык:`;
-          await sendTg({
-            text: welcomeText,
-            reply_markup: {
-              keyboard: [[{ text: "🇺🇿 O'zbekcha" }, { text: '🇷🇺 Русский' }]],
-              resize_keyboard: true,
-              one_time_keyboard: true,
-            },
-          });
-          return NextResponse.json({ ok: true });
-        }
-
-        if (text && !text.startsWith('/')) {
-          // Save name in DB
-          prisma.user.upsert({
-            where: { telegramId: tgId },
-            update: { name: text },
-            create: { telegramId: tgId, name: text },
-          }).catch(e => console.error(e));
-
-          const currentLang = getUserLang(tgId);
-          const promptPhone = currentLang === 'uz'
-            ? "📱 Iltimos, ro'yxatdan o'tishni yakunlash uchun telefon raqamingizni yuboring:"
-            : '📱 Пожалуйста, отправьте свой номер телефона для завершения регистрации:';
-
-          const btnText = currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер';
-
-          await sendTg({
-            text: promptPhone,
-            reply_markup: {
-              keyboard: [[{ text: btnText, request_contact: true }]],
-              resize_keyboard: true,
-              one_time_keyboard: true,
-            },
-          });
-          return NextResponse.json({ ok: true });
-        }
-
-        const currentLang = getUserLang(tgId);
-        const promptPhone = currentLang === 'uz'
-          ? "📱 Iltimos, pastdagi tugmani bosib raqamingizni yuboring:"
-          : '📱 Пожалуйста, нажмите кнопку ниже, чтобы отправить номер:';
-
+    // If NOT registered yet:
+    if (!isUserRegistered) {
+      // 1. /start command -> Show Language Selection
+      if (text.startsWith('/start')) {
+        const welcomeText = `👋 Xush kelibsiz <b>${storeName}</b> do'koniga!\n\nДобро пожаловать в <b>${storeName}</b>!\n\nIltimos, tilni tanlang / Пожалуйста, выберите язык:`;
         await sendTg({
-          text: promptPhone,
+          text: welcomeText,
           reply_markup: {
-            keyboard: [[{ text: currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер', request_contact: true }]],
+            keyboard: [[{ text: "🇺🇿 O'zbekcha" }, { text: '🇷🇺 Русский' }]],
             resize_keyboard: true,
             one_time_keyboard: true,
           },
         });
         return NextResponse.json({ ok: true });
       }
+
+      // 2. User typed their Name -> Save Name and ask for Phone
+      if (text && !text.startsWith('/')) {
+        prisma.user.upsert({
+          where: { telegramId: tgId },
+          update: { name: text },
+          create: { telegramId: tgId, name: text },
+        }).catch(e => console.error(e));
+
+        const promptPhone = currentLang === 'uz'
+          ? "📱 Iltimos, ro'yxatdan o'tishni yakunlash uchun telefon raqamingizni yuboring:"
+          : '📱 Пожалуйста, отправьте свой номер телефона для завершения регистрации:';
+
+        const btnText = currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер';
+
+        await sendTg({
+          text: promptPhone,
+          reply_markup: {
+            keyboard: [[{ text: btnText, request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      // Fallback prompt for contact
+      const promptPhone = currentLang === 'uz'
+        ? "📱 Iltimos, pastdagi tugmani bosib raqamingizni yuboring:"
+        : '📱 Пожалуйста, нажмите кнопку ниже, чтобы отправить номер:';
+
+      await sendTg({
+        text: promptPhone,
+        reply_markup: {
+          keyboard: [[{ text: currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+      return NextResponse.json({ ok: true });
     }
 
-    // ── STEP D: Menu Actions ──────────────────────────────────────────────
-    const currentLang = getUserLang(tgId);
+    // ── STEP D: Registered User Actions ───────────────────────────────────
 
-    if (text.startsWith('/start')) {
+    if (text.startsWith('/start') || text === '👑 Панель управления (SaaS)') {
       await sendMainMenu(currentLang);
       return NextResponse.json({ ok: true });
     }
@@ -305,7 +307,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       return NextResponse.json({ ok: true });
     }
 
-    // Default fallback
+    // Default fallback -> Main Menu
     await sendMainMenu(currentLang);
     return NextResponse.json({ ok: true });
   } catch (error: any) {
