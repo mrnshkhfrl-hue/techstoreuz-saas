@@ -130,6 +130,15 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       }
     };
 
+    const userName =
+      userStateCache.get(tgId)?.name ||
+      [from?.first_name, from?.last_name].filter(Boolean).join(" ") ||
+      from?.username ||
+      "User";
+
+    const storeUserUrl = `${storeUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
+    const superAdminUserUrl = `${superAdminUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
+
     // Helper: Build Main Menu
     const buildMainMenuKeyboard = (lang: string) => {
       const isUz = lang === 'uz';
@@ -139,12 +148,12 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       const langText = isUz ? "🌐 Tilni o'zgartirish" : '🌐 Сменить язык';
 
       const keyboardRows: any[] = [
-        [{ text: openBtnText, web_app: { url: storeUrl } }],
+        [{ text: openBtnText, web_app: { url: storeUserUrl } }],
       ];
 
       if (isOwner) {
         keyboardRows.unshift([
-          { text: '👑 Панель управления (SaaS)', web_app: { url: superAdminUrl } },
+          { text: '👑 Панель управления (SaaS)', web_app: { url: superAdminUserUrl } },
         ]);
       }
 

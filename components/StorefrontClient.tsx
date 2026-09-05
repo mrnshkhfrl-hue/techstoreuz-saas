@@ -19,12 +19,21 @@ import {
   ShieldCheck,
   ShoppingBag,
   Phone,
+  Search,
+  LayoutGrid,
+  List,
+  Trash2,
+  ArrowRight,
+  MapPin,
+  X,
 } from "lucide-react";
 import ProductBottomSheet from "@/components/ProductBottomSheet";
 import TradeInCalculator from "@/components/TradeInCalculator";
-import CartPanel from "@/components/CartPanel";
 import OnboardingModal from "@/components/OnboardingModal";
 import Toast from "@/components/Toast";
+import BottomNavBar, { NavTab } from "@/components/BottomNavBar";
+import SettingsTab from "@/components/SettingsTab";
+import BookingsTab from "@/components/BookingsTab";
 import { useTelegramAuth } from "@/hooks/useTelegramAuth";
 import { useCart } from "@/providers/CartProvider";
 
@@ -40,7 +49,6 @@ function fmtPrice(usd: number, rate: number, currency: "USD" | "UZS"): string {
   return `${sum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`;
 }
 
-/* SVG-силуэт телефона */
 function PhoneSilhouette({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -60,33 +68,6 @@ function PhoneSilhouette({ className = "" }: { className?: string }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   ANIMATION VARIANTS
-   ═══════════════════════════════════════════════════════ */
-
-const containerVariants = {
-  hidden: {},
-  show: {
-    transition: { staggerChildren: 0.06 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 24 },
-  },
-};
-
-const tabContentVariants = {
-  enter: { opacity: 0, y: 14 },
-  center: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -10 },
-};
-
-/* Spring config for taps */
 const tapSpring = { type: "spring" as const, stiffness: 400, damping: 17 };
 
 /* ═══════════════════════════════════════════════════════
@@ -108,11 +89,23 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
   const d = mounted ? resolvedTheme === "dark" : true;
   const isDark = d;
 
-  const [activeTab, setActiveTab] = useState<"new" | "used" | "profile">("new");
+  // Main 5-tab navigation state
+  const [navTab, setNavTab] = useState<NavTab>("catalog");
+
+  // Catalog sub-tab: New vs Used
+  const [catalogSubTab, setCatalogSubTab] = useState<"new" | "used">("new");
+
+  // Used products filters & view mode
+  const [usedViewMode, setUsedViewMode] = useState<"grid" | "list">("list");
+  const [usedSearch, setUsedSearch] = useState("");
+  const [usedBatteryFilter, setUsedBatteryFilter] = useState("all");
+  const [usedStorageFilter, setUsedStorageFilter] = useState("all");
+
   const [currency, setCurrency] = useState<"USD" | "UZS">("UZS");
   const [lang, setLang] = useState<"RU" | "UZ">("RU");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isTradeInOpen, setIsTradeInOpen] = useState(false);
+  const [isBookingLoading, setIsBookingLoading] = useState(false);
 
   /* ── Live Hooks (Auth & Cart) ── */
   const {
@@ -121,8 +114,9 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
     isLoading: isAuthLoading,
     needsPhone,
     registerWithPhone,
+    refetch,
   } = useTelegramAuth();
-  const { addItem, itemCount } = useCart();
+  const { items, removeItem, clearCart, addItem, itemCount, totalPrice } = useCart();
 
   const [toastState, setToastState] = useState<{
     message: string;
@@ -130,721 +124,853 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
     type: "success" | "error";
   }>({ message: "", visible: false, type: "success" });
 
-  /* ── Derived ── */
-  const tabs = useMemo(
-    () => [
-      { key: "new" as const, label: lang === "RU" ? "Новые" : "Yangi" },
-      { key: "used" as const, label: lang === "RU" ? "Б/У" : "Б/У" },
-      { key: "profile" as const, label: lang === "RU" ? "Профиль" : "Profil" },
-    ],
-    [lang]
-  );
+  /* ── Filtered Used Products ── */
+  const filteredUsedProducts = useMemo(() => {
+    if (!shop.usedProducts) return [];
+    return shop.usedProducts.filter((p: any) => {
+      // Search
+      if (usedSearch.trim()) {
+        const q = usedSearch.toLowerCase();
+        if (!p.title.toLowerCase().includes(q)) return false;
+      }
+      // Battery
+      if (usedBatteryFilter === "95+") {
+        if (p.batteryHealth < 95) return false;
+      } else if (usedBatteryFilter === "90+") {
+        if (p.batteryHealth < 90 || p.batteryHealth >= 95) return false;
+      } else if (usedBatteryFilter === "80+") {
+        if (p.batteryHealth < 80 || p.batteryHealth >= 90) return false;
+      } else if (usedBatteryFilter === "70+") {
+        if (p.batteryHealth < 70 || p.batteryHealth >= 80) return false;
+      }
+      // Storage
+      if (usedStorageFilter !== "all") {
+        if (!p.title.toLowerCase().includes(usedStorageFilter.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [shop.usedProducts, usedSearch, usedBatteryFilter, usedStorageFilter]);
+
+  /* ── 1-Click Direct Booking on Used Device ── */
+  const handleBookUsedProduct = async (product: any) => {
+    if (!authUser?.phone) {
+      setSelectedProduct(product);
+      return;
+    }
+
+    setIsBookingLoading(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId: shop.id,
+          telegramId: authUser.telegramId,
+          phone: authUser.phone,
+          items: [{ type: "USED", id: product.id }],
+        }),
+      });
+
+      if (res.ok) {
+        setToastState({
+          message:
+            lang === "RU"
+              ? `«${product.title}» успешно забронирован на 24 часа!`
+              : `«${product.title}» 24 soatga band qilindi!`,
+          visible: true,
+          type: "success",
+        });
+        await refetch();
+        setNavTab("bookings");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setToastState({
+          message: err.error || (lang === "RU" ? "Ошибка бронирования" : "Band qilishda xatolik"),
+          visible: true,
+          type: "error",
+        });
+      }
+    } catch (err: any) {
+      setToastState({
+        message: err.message || "Ошибка соединения с сервером",
+        visible: true,
+        type: "error",
+      });
+    } finally {
+      setIsBookingLoading(false);
+    }
+  };
+
+  /* ── Name Update in Settings ── */
+  const handleNameUpdate = async (newName: string): Promise<boolean> => {
+    const tgId = authUser?.telegramId || (telegramUser?.telegramId ? String(telegramUser.telegramId) : "");
+    if (!tgId) return false;
+
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramId: tgId,
+          firstName: newName,
+          phone: authUser?.phone || "",
+        }),
+      });
+      if (res.ok) {
+        await refetch();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  };
+
+  /* ── Cart Checkout ── */
+  const handleCartCheckout = async () => {
+    if (!authUser?.phone) {
+      setToastState({
+        message:
+          lang === "RU"
+            ? "Пожалуйста, привяжите номер телефона в профиле"
+            : "Iltimos, profilingizda telefon raqamini biriktiring",
+        visible: true,
+        type: "error",
+      });
+      return;
+    }
+
+    try {
+      const bookingItems = items.map((it) => ({
+        type: it.type,
+        id: it.id,
+      }));
+
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId: shop.id,
+          telegramId: authUser.telegramId,
+          phone: authUser.phone,
+          items: bookingItems,
+        }),
+      });
+
+      if (res.ok) {
+        clearCart();
+        setToastState({
+          message:
+            lang === "RU"
+              ? "Заказ успешно оформлен! Ждем вас в филиале."
+              : "Buyurtma qabul qilindi! Filialimizda kutamiz.",
+          visible: true,
+          type: "success",
+        });
+        await refetch();
+        setNavTab("bookings");
+      }
+    } catch (err: any) {
+      setToastState({
+        message: err.message || "Ошибка оформления заказа",
+        visible: true,
+        type: "error",
+      });
+    }
+  };
 
   return (
     <div
       className={`max-w-[430px] mx-auto min-h-screen relative font-sans ${
         d ? "text-white sm:border-white/10" : "text-[#1C1C1E] sm:border-black/10"
-      } bg-transparent sm:border-x transition-colors duration-200`}
+      } bg-transparent sm:border-x transition-colors duration-200 pb-20`}
     >
       {/* ═══════════════════════════════════════════════════
-          HEADER — Liquid Glass
+          HEADER — Minimal Liquid Glass
           ═══════════════════════════════════════════════════ */}
       <header
         className={`sticky top-0 z-40 ${
-          d ? "bg-[#07070b]/75 border-white/10" : "bg-white/85 border-black/10 shadow-sm"
-        } backdrop-blur-xl border-b shadow-xl transition-colors duration-300 relative`}
+          d ? "bg-[#07070b]/80 border-white/10" : "bg-white/85 border-black/10 shadow-sm"
+        } backdrop-blur-xl border-b transition-colors duration-300 relative`}
       >
         <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
           d ? "via-white/20" : "via-black/10"
         } to-transparent pointer-events-none`} />
-        <div className="px-4 pt-10 pb-3">
-          {/* Row 1: Title + controls */}
-          <div className="flex items-center justify-between mb-3">
-            <h1 className={`text-[22px] font-bold tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+
+        <div className="px-4 pt-10 pb-3 flex items-center justify-between">
+          <div>
+            <h1 className={`text-[20px] font-bold tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}>
               {shop.name}
             </h1>
-            <div className="flex items-center gap-1.5">
-              {/* Theme toggle */}
-              <motion.button
-                whileTap={{ scale: 0.85 }}
-                transition={tapSpring}
-                onClick={() => setTheme(d ? "light" : "dark")}
-                className={`
-                  w-8 h-8 rounded-full flex items-center justify-center
-                  liquid-glass transition-colors
-                `}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {isDark ? (
-                    <motion.div
-                      key="sun"
-                      initial={{ rotate: -90, opacity: 0 }}
-                      animate={{ rotate: 0, opacity: 1 }}
-                      exit={{ rotate: 90, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Sun size={14} className="text-yellow-400" />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="moon"
-                      initial={{ rotate: 90, opacity: 0 }}
-                      animate={{ rotate: 0, opacity: 1 }}
-                      exit={{ rotate: 90, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Moon size={14} className="text-[#1C1C1E]" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-
-              {/* Lang toggle */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                transition={tapSpring}
-                onClick={() => setLang(lang === "RU" ? "UZ" : "RU")}
-                className={`
-                  h-7 px-2.5 rounded-full text-[11px] font-semibold
-                  liquid-glass
-                  ${d ? "text-white/60" : "text-[#1C1C1E]/60"}
-                `}
-              >
-                {lang === "RU" ? "RU" : "UZ"}
-              </motion.button>
-
-              {/* Currency toggle */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                transition={tapSpring}
-                onClick={() => setCurrency(currency === "UZS" ? "USD" : "UZS")}
-                className={`
-                  h-7 px-2.5 rounded-full text-[11px] font-semibold
-                  liquid-glass
-                  ${d ? "text-white/60" : "text-[#1C1C1E]/60"}
-                `}
-              >
-                {currency === "UZS" ? "СУМ" : "USD"}
-              </motion.button>
-            </div>
+            <p className={`text-[11px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"} mt-0.5`}>
+              {lang === "RU" ? "Официальный магазин" : "Rasmiy do'kon"}
+            </p>
           </div>
 
-          {/* Segmented Control — Liquid Glass */}
-          <div
-            className={`
-              flex p-[3px] rounded-full relative
-              ${d ? "bg-white/[0.04] border border-white/[0.06]" : "bg-black/[0.04] border border-black/[0.04]"}
-            `}
-          >
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`
-                    relative flex-1 py-[7px] text-[13px] font-semibold
-                    rounded-full transition-colors z-10
-                    ${isActive ? "" : d ? "text-white/30" : "text-[#1C1C1E]/30"}
-                  `}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className={`
-                        absolute inset-0 rounded-full
-                        ${
-                          tab.key === "new"
-                            ? "bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
-                            : d
-                              ? "bg-white/[0.08] shadow-sm"
-                              : "bg-white shadow-sm shadow-black/[0.04]"
-                        }
-                      `}
-                      initial={false}
-                      transition={{
-                        type: "spring",
-                        stiffness: 400,
-                        damping: 28,
-                      }}
-                    />
-                  )}
-                  <span
-                    className={`relative z-10 ${
-                      isActive
-                        ? tab.key === "new"
-                          ? "text-white"
-                          : d ? "text-white" : "text-[#1C1C1E]"
-                        : ""
-                    }`}
-                  >
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-1.5">
+            {/* Currency toggle */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              transition={tapSpring}
+              onClick={() => setCurrency(currency === "UZS" ? "USD" : "UZS")}
+              className={`
+                h-7 px-2.5 rounded-full text-[11px] font-bold
+                liquid-glass transition-colors cursor-pointer
+                ${d ? "text-white/80" : "text-[#1C1C1E]/80"}
+              `}
+            >
+              {currency === "UZS" ? "СУМ" : "USD"}
+            </motion.button>
+
+            {/* Theme toggle */}
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              transition={tapSpring}
+              onClick={() => setTheme(d ? "light" : "dark")}
+              className="w-7 h-7 rounded-full flex items-center justify-center liquid-glass transition-colors cursor-pointer"
+            >
+              {isDark ? (
+                <Sun size={13} className="text-yellow-400" />
+              ) : (
+                <Moon size={13} className="text-[#1C1C1E]" />
+              )}
+            </motion.button>
           </div>
         </div>
       </header>
 
       {/* ═══════════════════════════════════════════════════
-          TRADE-IN BANNER — Liquid Glass
+          MAIN CONTENT AREA BASED ON ACTIVE NAV TAB
           ═══════════════════════════════════════════════════ */}
-      <div className="px-4 pt-4 pb-1">
-        <motion.div
-          whileTap={{ scale: 0.98 }}
-          transition={tapSpring}
-          onClick={() => setIsTradeInOpen(true)}
-          className={`w-full rounded-3xl relative overflow-hidden cursor-pointer ${
-            d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"
-          } backdrop-blur-lg border group transition-all`}
-        >
-          {/* Glass Edge Reflection */}
-          <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
-            d ? "via-white/25" : "via-black/10"
-          } to-transparent pointer-events-none`} />
-
-          {/* Ambient inner soft glowing orbs */}
-          <div className="absolute -right-8 -top-8 w-40 h-40 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none group-hover:scale-110 transition-transform duration-500" />
-          <div className="absolute left-6 -bottom-10 w-36 h-36 bg-[#7928CA]/15 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 flex items-center justify-center text-[#007AFF]">
-                <ArrowLeftRight size={12} />
-              </div>
-              <p className="text-[#007AFF] text-[11px] font-bold uppercase tracking-[0.15em]">
-                Trade-in Express
-              </p>
-            </div>
-            <h2 className={`${d ? "text-white" : "text-[#1C1C1E]"} text-[18px] font-bold mb-1 leading-snug tracking-tight`}>
-              {lang === "RU"
-                ? "Обменяйте старое на новое"
-                : "Eskisini yangisiga almashtiring"}
-            </h2>
-            <p className={`${d ? "text-white/60" : "text-[#1C1C1E]/60"} text-[13px] mb-4 leading-relaxed max-w-[250px]`}>
-              {lang === "RU"
-                ? "Оценим ваше устройство за 2 минуты и предложим лучшую цену."
-                : "Qurilmangizni 2 daqiqada baholaymiz va eng yaxshi narxni beramiz."}
-            </p>
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              transition={tapSpring}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsTradeInOpen(true);
-              }}
-              className={`px-5 py-2.5 ${
-                d
-                  ? "bg-white/10 hover:bg-white/15 text-white border-white/20"
-                  : "bg-black/5 hover:bg-black/10 text-[#1C1C1E] border-black/10"
-              } border text-[13px] font-bold rounded-2xl shadow-sm backdrop-blur-md flex items-center gap-2 transition-all`}
-            >
-              <span>{lang === "RU" ? "Оценить устройство" : "Qurilmani baholash"}</span>
-              <span className="text-[#007AFF]">→</span>
-            </motion.button>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════
-          CONTENT AREA
-          ═══════════════════════════════════════════════════ */}
-      <main className="px-4 pt-3 pb-32 min-h-[50vh]">
+      <main className="px-4 pt-3 min-h-[70vh]">
         <AnimatePresence mode="wait">
-          {/* ────────── TAB: NEW ────────── */}
-          {activeTab === "new" && (
+          {/* ══════════ 1. TAB: CATALOG (ГЛАВНАЯ) ══════════ */}
+          {navTab === "catalog" && (
             <motion.div
-              key="tab-new"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit="exit"
+              key="tab-catalog"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-4"
             >
+              {/* Trade-In Banner */}
               <motion.div
-                variants={tabContentVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.22, ease: "easeOut" }}
-                className="grid grid-cols-2 gap-3"
+                whileTap={{ scale: 0.98 }}
+                transition={tapSpring}
+                onClick={() => setIsTradeInOpen(true)}
+                className={`w-full rounded-3xl relative overflow-hidden cursor-pointer ${
+                  d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"
+                } backdrop-blur-lg border group transition-all`}
               >
-                {shop.newProducts?.length > 0 ? (
-                  shop.newProducts.map((p: any, i: number) => {
-                    const minPrice = p.variants?.length
-                      ? Math.min(...p.variants.map((v: any) => v.price))
-                      : p.basePrice;
-                    const colorCount = new Set(
-                      p.variants?.map((v: any) => v.color) || []
-                    ).size;
-                    const storageSet = new Set(
-                      p.variants?.map((v: any) => v.storage) || []
-                    );
+                <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+                  d ? "via-white/25" : "via-black/10"
+                } to-transparent pointer-events-none`} />
+                <div className="absolute -right-8 -top-8 w-36 h-36 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
 
-                    return (
-                      <motion.div
-                        key={p.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{
-                          delay: i * 0.06,
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 24,
-                        }}
-                        whileTap={{ scale: 0.96 }}
-                        onClick={() => setSelectedProduct(p)}
-                        className={`rounded-3xl p-4 flex flex-col cursor-pointer relative overflow-hidden transition-all group border ${
-                          d
-                            ? "bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20 shadow-xl"
-                            : "bg-white border-black/10 hover:border-black/20 shadow-sm hover:shadow-md"
-                        }`}
-                      >
-                        {/* Glass Edge highlight */}
-                        <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
-                          d ? "via-white/20" : "via-black/10"
-                        } to-transparent pointer-events-none`} />
-
-                        {/* NEW badge */}
-                        <div className="absolute top-3 left-3 z-10">
-                          <div className="flex items-center gap-1 bg-[#007AFF] text-white text-[9px] font-bold px-2 py-[3px] rounded-glass-sm shadow-md shadow-[#007AFF]/20">
-                            <Sparkles size={9} />
-                            NEW
-                          </div>
-                        </div>
-
-                        {/* Phone illustration */}
-                        <div
-                          className={`
-                            w-full aspect-square rounded-glass-lg mb-3
-                            flex items-center justify-center
-                            ${d ? "bg-gradient-to-b from-white/[0.02] to-transparent" : "bg-gradient-to-b from-black/[0.02] to-transparent"}
-                            group-hover:scale-[1.02] transition-transform duration-500
-                          `}
-                        >
-                          <PhoneSilhouette
-                            className={`w-16 h-24 ${d ? "text-white" : "text-gray-400"}`}
-                          />
-                        </div>
-
-                        {/* Title */}
-                        <h3
-                          className={`font-semibold text-[13px] leading-tight mb-1.5 tracking-tight ${
-                            d ? "text-white/90" : "text-[#1C1C1E]"
-                          }`}
-                        >
-                          {p.title}
-                        </h3>
-
-                        {/* Chips */}
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {p.variants?.length > 0 && (
-                            <span
-                              className={`text-[9px] font-medium px-1.5 py-[2px] rounded-glass-xs ${
-                                d
-                                  ? "bg-white/[0.06] text-white/50 border border-white/[0.06]"
-                                  : "bg-black/[0.04] text-[#1C1C1E]/50 border border-black/[0.04]"
-                              }`}
-                            >
-                              {storageSet.size} памят{storageSet.size > 1 ? "и" : "ь"}
-                            </span>
-                          )}
-                          {colorCount > 0 && (
-                            <span
-                              className={`text-[9px] font-medium px-1.5 py-[2px] rounded-glass-xs ${
-                                d
-                                  ? "bg-white/[0.06] text-white/50 border border-white/[0.06]"
-                                  : "bg-black/[0.04] text-[#1C1C1E]/50 border border-black/[0.04]"
-                              }`}
-                            >
-                              {colorCount} цвет{colorCount > 1 ? (colorCount < 5 ? "а" : "ов") : ""}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Price */}
-                        <div className="mt-auto">
-                          <p
-                            className={`text-[9px] uppercase tracking-[0.15em] mb-0.5 font-medium ${
-                              d ? "text-white/25" : "text-[#1C1C1E]/25"
-                            }`}
-                          >
-                            {lang === "RU" ? "от" : "dan"}
-                          </p>
-                          <p className="font-bold text-[14px] text-[#007AFF] leading-none">
-                            {fmtPrice(minPrice, shop.currencyRate, currency)}
-                          </p>
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                ) : (
-                  <div
-                    className={`col-span-2 liquid-glass rounded-glass flex flex-col items-center justify-center py-16 text-center`}
-                  >
-                    <Smartphone
-                      size={32}
-                      className={`mb-3 ${d ? "text-white/20" : "text-[#1C1C1E]/20"}`}
-                    />
-                    <p className={`text-sm ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                      {lang === "RU" ? "Новых товаров пока нет" : "Hozircha yangi tovarlar yo'q"}
+                <div className="p-4 relative z-10 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-5 h-5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 flex items-center justify-center text-[#007AFF]">
+                        <ArrowLeftRight size={10} />
+                      </div>
+                      <span className="text-[#007AFF] text-[10px] font-bold uppercase tracking-wider">
+                        Trade-in Express
+                      </span>
+                    </div>
+                    <h3 className={`text-[15px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                      {lang === "RU" ? "Обменяйте старое на новое" : "Eskisini yangisiga almashtiring"}
+                    </h3>
+                    <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
+                      {lang === "RU" ? "5 бесплатных расчетов за 1 минуту" : "1 daqiqada 5 ta bepul hisob"}
                     </p>
                   </div>
-                )}
+
+                  <span className="px-3.5 py-1.5 rounded-xl bg-[#007AFF] text-white text-[11px] font-bold shadow-md shadow-[#007AFF]/25">
+                    {lang === "RU" ? "Оценить →" : "Baholash →"}
+                  </span>
+                </div>
               </motion.div>
-            </motion.div>
-          )}
 
-          {/* ────────── TAB: USED ────────── */}
-          {activeTab === "used" && (
-            <motion.div
-              key="tab-used"
-              variants={tabContentVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="flex flex-col gap-3"
-            >
-              {shop.usedProducts?.length > 0 ? (
-                shop.usedProducts.map((p: any, i: number) => {
-                  const isBooked = p.status === "BOOKED";
-                  const isSold =
-                    p.status === "SOLD_OFFLINE" || p.status === "SOLD_ONLINE";
-                  const bh = p.batteryHealth;
-                  const batteryColor =
-                    bh >= 90
-                      ? d
-                        ? "text-[#34C759] bg-[#34C759]/10 border-[#34C759]/15"
-                        : "text-[#34C759] bg-[#34C759]/8 border-[#34C759]/15"
-                      : bh >= 80
-                        ? d
-                          ? "text-[#FF9500] bg-[#FF9500]/10 border-[#FF9500]/15"
-                          : "text-[#FF9500] bg-[#FF9500]/8 border-[#FF9500]/15"
-                        : d
-                          ? "text-[#FF3B30] bg-[#FF3B30]/10 border-[#FF3B30]/15"
-                          : "text-[#FF3B30] bg-[#FF3B30]/8 border-[#FF3B30]/15";
-
-                  return (
-                    <motion.div
-                      key={p.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        delay: i * 0.06,
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 24,
-                      }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => !isBooked && !isSold && setSelectedProduct(p)}
-                      className={`
-                        rounded-3xl p-4 flex gap-3.5 cursor-pointer border
-                        relative overflow-hidden transition-all group
-                        ${
-                          d
-                            ? "bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20 shadow-xl"
-                            : "bg-white border-black/10 hover:border-black/20 shadow-sm hover:shadow-md"
-                        }
-                        ${isBooked || isSold ? "opacity-50" : ""}
-                      `}
-                    >
-                      {/* Glass Edge highlight */}
-                      <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
-                        d ? "via-white/20" : "via-black/10"
-                      } to-transparent pointer-events-none`} />
-
-                      {/* Phone image */}
-                      <div
-                        className={`
-                          w-[76px] h-[96px] rounded-glass-md flex-shrink-0
-                          flex items-center justify-center
-                          ${d ? "bg-gradient-to-b from-white/[0.02] to-transparent" : "bg-gradient-to-b from-black/[0.02] to-transparent"}
-                        `}
-                      >
-                        <PhoneSilhouette
-                          className={`w-10 h-16 ${d ? "text-white" : "text-gray-400"}`}
-                        />
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                        <div>
-                          <h3
-                            className={`font-semibold text-[13px] mb-2 truncate tracking-tight ${
-                              d ? "text-white/90" : "text-[#1C1C1E]"
-                            }`}
-                          >
-                            {p.title}
-                          </h3>
-
-                          {/* Badge row */}
-                          <div className="flex flex-wrap gap-1.5 mb-2.5">
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-[2px] rounded-glass-xs border flex items-center gap-1 ${batteryColor}`}
-                            >
-                              <Battery size={10} />
-                              {bh}%
-                            </span>
-                            <span
-                              className={`text-[10px] font-medium px-1.5 py-[2px] rounded-glass-xs ${
-                                d
-                                  ? "bg-white/[0.06] text-white/50 border border-white/[0.06]"
-                                  : "bg-black/[0.04] text-[#1C1C1E]/50 border border-black/[0.04]"
-                              }`}
-                            >
-                              {p.region}
-                            </span>
-                            {p.hasBox && (
-                              <span
-                                className={`text-[10px] font-medium px-1.5 py-[2px] rounded-glass-xs flex items-center gap-0.5 ${
-                                  d
-                                    ? "bg-white/[0.06] text-white/50 border border-white/[0.06]"
-                                    : "bg-black/[0.04] text-[#1C1C1E]/50 border border-black/[0.04]"
-                                }`}
-                              >
-                                <Box size={9} />
-                                {lang === "RU" ? "Коробка" : "Quti"}
-                              </span>
-                            )}
-                            {p.defects && (
-                              <span
-                                className={`text-[10px] font-medium px-1.5 py-[2px] rounded-glass-xs flex items-center gap-0.5 ${
-                                  d
-                                    ? "bg-[#FF9500]/8 text-[#FF9500] border border-[#FF9500]/12"
-                                    : "bg-[#FF9500]/6 text-[#FF9500] border border-[#FF9500]/12"
-                                }`}
-                              >
-                                <AlertCircle size={9} />
-                                {lang === "RU" ? "Дефект" : "Nuqson"}
-                              </span>
-                            )}
-                            {isBooked && (
-                              <span
-                                className={`text-[10px] font-semibold px-1.5 py-[2px] rounded-glass-xs ${
-                                  d
-                                    ? "bg-[#FF9500]/10 text-[#FF9500] border border-[#FF9500]/15"
-                                    : "bg-[#FF9500]/8 text-[#FF9500] border border-[#FF9500]/15"
-                                }`}
-                              >
-                                {lang === "RU" ? "Забронирован" : "Band qilingan"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Price + CTA */}
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-bold text-[15px] text-[#5AC8FA] leading-none">
-                            {fmtPrice(p.price, shop.currencyRate, currency)}
-                          </p>
-                          {!isBooked && !isSold && (
-                            <motion.button
-                              whileTap={{ scale: 0.93 }}
-                              transition={tapSpring}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addItem({
-                                  id: p.id,
-                                  type: "USED",
-                                  title: p.title,
-                                  variant: `Б/У · ${p.batteryHealth}% АКБ · ${p.region}`,
-                                  price: p.price,
-                                });
-                              }}
-                              className="px-3.5 py-1.5 bg-[#007AFF] hover:bg-[#0A84FF] text-white text-[11px] font-bold rounded-xl shadow-md shadow-[#007AFF]/25 transition-all flex items-center gap-1"
-                            >
-                              <ShoppingBag size={12} />
-                              <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
-                            </motion.button>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })
-              ) : (
-                <div
-                  className={`liquid-glass rounded-glass flex flex-col items-center justify-center py-16 text-center`}
+              {/* Sub-segmented control: New vs Used */}
+              <div
+                className={`flex p-[3px] rounded-full relative ${
+                  d ? "bg-white/[0.04] border border-white/[0.06]" : "bg-black/[0.04] border border-black/[0.04]"
+                }`}
+              >
+                <button
+                  onClick={() => setCatalogSubTab("new")}
+                  className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
+                    catalogSubTab === "new" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
+                  }`}
                 >
-                  <Smartphone
-                    size={32}
-                    className={`mb-3 ${d ? "text-white/20" : "text-[#1C1C1E]/20"}`}
-                  />
-                  <p className={`text-sm ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                    {lang === "RU" ? "Б/У товаров пока нет" : "Hozircha Б/У tovarlar yo'q"}
-                  </p>
+                  {catalogSubTab === "new" && (
+                    <motion.div
+                      layoutId="subTabHighlight"
+                      transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                      className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
+                    />
+                  )}
+                  <span className="relative z-10">{lang === "RU" ? "Новые устройства" : "Yangi qurilmalar"}</span>
+                </button>
+
+                <button
+                  onClick={() => setCatalogSubTab("used")}
+                  className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
+                    catalogSubTab === "used" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
+                  }`}
+                >
+                  {catalogSubTab === "used" && (
+                    <motion.div
+                      layoutId="subTabHighlight"
+                      transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                      className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
+                    />
+                  )}
+                  <span className="relative z-10">{lang === "RU" ? "Б/У с гарантией" : "Kafolatli B/U"}</span>
+                </button>
+              </div>
+
+              {/* ── SUB-VIEW: NEW PRODUCTS ── */}
+              {catalogSubTab === "new" && (
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  {shop.newProducts?.length > 0 ? (
+                    shop.newProducts.map((p: any) => {
+                      const minPrice = p.variants?.length
+                        ? Math.min(...p.variants.map((v: any) => v.price))
+                        : p.basePrice;
+
+                      return (
+                        <motion.div
+                          key={p.id}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => setSelectedProduct(p)}
+                          className={`rounded-3xl p-3.5 flex flex-col cursor-pointer border relative overflow-hidden transition-all ${
+                            d
+                              ? "bg-white/5 border-white/10 hover:border-white/20 shadow-xl"
+                              : "bg-white border-black/10 hover:border-black/20 shadow-sm"
+                          }`}
+                        >
+                          <div className="w-full h-28 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent">
+                            <PhoneSilhouette className={`w-14 h-24 ${d ? "text-white" : "text-gray-400"}`} />
+                          </div>
+                          <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                            {p.title}
+                          </h4>
+                          <p className="text-[10px] text-emerald-400 font-semibold mb-1">
+                            {lang === "RU" ? "Новый • В наличии" : "Yangi • Mavjud"}
+                          </p>
+                          <p className="text-[14px] font-extrabold text-[#007AFF] mt-auto">
+                            {fmtPrice(minPrice, shop.currencyRate, currency)}
+                          </p>
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-2 text-center py-12 text-white/40 text-[13px]">
+                      {lang === "RU" ? "Нет новых устройств" : "Yangi qurilmalar yo'q"}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SUB-VIEW: USED PRODUCTS (WITH FILTERS & GRID/LIST SWITCH) ── */}
+              {catalogSubTab === "used" && (
+                <div className="space-y-3 pt-1">
+                  {/* Search and Grid/List toggle bar */}
+                  <div className="flex items-center gap-2">
+                    <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-2xl border ${
+                      d ? "bg-white/5 border-white/10 text-white" : "bg-black/[0.03] border-black/10 text-[#1C1C1E]"
+                    }`}>
+                      <Search size={14} className={d ? "text-white/40" : "text-black/40"} />
+                      <input
+                        type="text"
+                        value={usedSearch}
+                        onChange={(e) => setUsedSearch(e.target.value)}
+                        placeholder={lang === "RU" ? "Поиск модели (iPhone 14...)" : "Model qidirish..."}
+                        className="bg-transparent text-[12px] outline-none flex-1 placeholder:text-inherit/30"
+                      />
+                      {usedSearch && (
+                        <button onClick={() => setUsedSearch("")} className="cursor-pointer">
+                          <X size={13} className="opacity-50 hover:opacity-100" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* View Switcher */}
+                    <div className={`p-1 rounded-2xl border flex items-center gap-0.5 ${
+                      d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"
+                    }`}>
+                      <button
+                        onClick={() => setUsedViewMode("list")}
+                        className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                          usedViewMode === "list" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-40"
+                        }`}
+                      >
+                        <List size={14} />
+                      </button>
+                      <button
+                        onClick={() => setUsedViewMode("grid")}
+                        className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                          usedViewMode === "grid" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-40"
+                        }`}
+                      >
+                        <LayoutGrid size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Battery Health filter chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
+                      АКБ:
+                    </span>
+                    {[
+                      { id: "all", label: "Все" },
+                      { id: "95+", label: "95-100%" },
+                      { id: "90+", label: "90-94%" },
+                      { id: "80+", label: "80-89%" },
+                      { id: "70+", label: "70-79%" },
+                    ].map((b) => (
+                      <button
+                        key={b.id}
+                        onClick={() => setUsedBatteryFilter(b.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
+                          usedBatteryFilter === b.id
+                            ? "bg-[#007AFF] text-white shadow-sm"
+                            : d
+                            ? "bg-white/5 text-white/60 hover:bg-white/10"
+                            : "bg-black/5 text-[#1C1C1E]/60 hover:bg-black/10"
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Storage filter chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
+                      Память:
+                    </span>
+                    {["all", "128GB", "256GB", "512GB", "1TB"].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setUsedStorageFilter(s)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
+                          usedStorageFilter === s
+                            ? "bg-[#007AFF] text-white shadow-sm"
+                            : d
+                            ? "bg-white/5 text-white/60 hover:bg-white/10"
+                            : "bg-black/5 text-[#1C1C1E]/60 hover:bg-black/10"
+                        }`}
+                      >
+                        {s === "all" ? "Все" : s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Used Products List / Grid */}
+                  {filteredUsedProducts.length === 0 ? (
+                    <div className="text-center py-12 text-white/40 text-[13px]">
+                      {lang === "RU" ? "Устройств по выбранным фильтрам не найдено" : "Tanlangan filtrlar bo'yicha qurilma topilmadi"}
+                    </div>
+                  ) : usedViewMode === "grid" ? (
+                    /* Grid View (2 cols) */
+                    <div className="grid grid-cols-2 gap-3">
+                      {filteredUsedProducts.map((p: any) => {
+                        const isBooked = p.status === "BOOKED";
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-3.5 rounded-3xl border flex flex-col justify-between transition-all ${
+                              d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                            } ${isBooked ? "opacity-50" : ""}`}
+                          >
+                            <div>
+                              <div className="w-full h-24 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent">
+                                <PhoneSilhouette className={`w-12 h-20 ${d ? "text-white" : "text-gray-400"}`} />
+                              </div>
+                              <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                                {p.title}
+                              </h4>
+                              <div className="flex items-center gap-1 mt-1 mb-2">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
+                                  🔋 {p.batteryHealth}%
+                                </span>
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-black/60"}`}>
+                                  {p.region}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-2 pt-2 border-t border-white/5 flex flex-col gap-2">
+                              <span className="text-[13px] font-extrabold text-[#007AFF]">
+                                {fmtPrice(p.price, shop.currencyRate, currency)}
+                              </span>
+                              <button
+                                disabled={isBooked || isBookingLoading}
+                                onClick={() => handleBookUsedProduct(p)}
+                                className={`w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all ${
+                                  isBooked
+                                    ? "bg-white/10 text-white/40 cursor-not-allowed"
+                                    : "bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/20"
+                                }`}
+                              >
+                                <span>{isBooked ? (lang === "RU" ? "Забронирован" : "Band") : (lang === "RU" ? "Забронировать" : "Band qilish")}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Detailed List View */
+                    <div className="space-y-3">
+                      {filteredUsedProducts.map((p: any) => {
+                        const isBooked = p.status === "BOOKED";
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-4 rounded-3xl border flex gap-3.5 transition-all ${
+                              d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                            } ${isBooked ? "opacity-50" : ""}`}
+                          >
+                            <div className={`w-[72px] h-[92px] rounded-2xl flex items-center justify-center shrink-0 ${d ? "bg-white/[0.02]" : "bg-black/[0.02]"}`}>
+                              <PhoneSilhouette className={`w-10 h-16 ${d ? "text-white" : "text-gray-400"}`} />
+                            </div>
+
+                            <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                              <div>
+                                <h4 className={`text-[14px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                                  {p.title}
+                                </h4>
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
+                                    🔋 {p.batteryHealth}% АКБ
+                                  </span>
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
+                                    🌍 {p.region}
+                                  </span>
+                                  {p.hasBox && (
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
+                                      📦 {lang === "RU" ? "Коробка" : "Quti"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
+                                <span className="text-[15px] font-extrabold text-[#007AFF]">
+                                  {fmtPrice(p.price, shop.currencyRate, currency)}
+                                </span>
+                                <button
+                                  disabled={isBooked || isBookingLoading}
+                                  onClick={() => handleBookUsedProduct(p)}
+                                  className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all ${
+                                    isBooked
+                                      ? "bg-white/10 text-white/40 cursor-not-allowed"
+                                      : "bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/25"
+                                  }`}
+                                >
+                                  <Clock size={12} />
+                                  <span>{isBooked ? (lang === "RU" ? "Забронирован" : "Band") : (lang === "RU" ? "Забронировать" : "Band qilish")}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>
           )}
 
-          {/* ────────── TAB: PROFILE ────────── */}
-          {activeTab === "profile" && (
+          {/* ══════════ 2. TAB: BOOKINGS (БРОНИ) ══════════ */}
+          {navTab === "bookings" && (
+            <motion.div
+              key="tab-bookings"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <BookingsTab
+                user={authUser}
+                isDark={d}
+                lang={lang}
+                currency={currency}
+                currencyRate={shop.currencyRate}
+                onNavigateToUsed={() => {
+                  setNavTab("catalog");
+                  setCatalogSubTab("used");
+                }}
+              />
+            </motion.div>
+          )}
+
+          {/* ══════════ 3. TAB: CART (КОРЗИНА) ══════════ */}
+          {navTab === "cart" && (
+            <motion.div
+              key="tab-cart"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-4 pb-24"
+            >
+              <div className="px-1">
+                <h2 className={`text-[20px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                  {lang === "RU" ? "Корзина покупок" : "Xaridlar savati"}
+                </h2>
+                <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
+                  {lang === "RU" ? "Выбранные устройства и оформление заказа" : "Tanlangan qurilmalar va buyurtma berish"}
+                </p>
+              </div>
+
+              {items.length === 0 ? (
+                <div className={`p-8 rounded-[24px] text-center flex flex-col items-center justify-center space-y-3 border ${
+                  d ? "bg-white/[0.03] border-white/10" : "bg-white border-black/10 shadow-sm"
+                }`}>
+                  <div className="w-14 h-14 rounded-full bg-[#007AFF]/15 flex items-center justify-center text-[#007AFF]">
+                    <ShoppingBag size={24} />
+                  </div>
+                  <h3 className={`text-[15px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                    {lang === "RU" ? "Корзина пуста" : "Savat bo'sh"}
+                  </h3>
+                  <p className={`text-[12px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"} max-w-[220px]`}>
+                    {lang === "RU" ? "Добавьте устройства из каталога для оформления" : "Buyurtma berish uchun katalogdan tovar qo'shing"}
+                  </p>
+                  <button
+                    onClick={() => setNavTab("catalog")}
+                    className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-[12px] font-bold shadow-md shadow-[#007AFF]/25 cursor-pointer"
+                  >
+                    {lang === "RU" ? "Перейти в каталог" : "Katalogga o'tish"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {items.map((it) => (
+                    <div
+                      key={it.id}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                        d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                          {it.title}
+                        </h4>
+                        {it.variant && (
+                          <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} truncate`}>
+                            {it.variant}
+                          </p>
+                        )}
+                        <p className="text-[13px] font-extrabold text-[#007AFF] mt-1">
+                          {fmtPrice(it.price, shop.currencyRate, currency)}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => removeItem(it.id)}
+                        className="p-2 text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Summary & Checkout Card */}
+                  <div className={`p-4 rounded-3xl border space-y-3 ${
+                    d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[13px] ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
+                        {lang === "RU" ? "Итого к оплате:" : "Jami to'lov:"}
+                      </span>
+                      <span className={`text-[18px] font-black ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                        {fmtPrice(totalPrice, shop.currencyRate, currency)}
+                      </span>
+                    </div>
+
+                    <div className={`p-3 rounded-xl border text-[12px] space-y-1 ${
+                      d ? "bg-white/[0.02] border-white/5 text-white/70" : "bg-black/[0.02] border-black/5 text-[#1C1C1E]/70"
+                    }`}>
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <MapPin size={13} className="text-[#FF2D55]" />
+                        <span>{lang === "RU" ? "Самовывоз: г. Самарканд, ул. Гульабад, 1" : "Olib ketish: Samarqand sh., Gulobod ko'chasi, 1"}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <Phone size={12} className="text-[#34C759]" />
+                        <span>{authUser?.phone || "+998 77 285-99-99"}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleCartCheckout}
+                      className="w-full py-3.5 rounded-2xl bg-[#007AFF] hover:bg-[#007AFF]/90 text-white text-[14px] font-bold shadow-lg shadow-[#007AFF]/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <ShoppingBag size={16} />
+                      <span>{lang === "RU" ? "Оформить заказ в магазине" : "Do'konda buyurtma berish"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ══════════ 4. TAB: PROFILE (ПРОФИЛЬ) ══════════ */}
+          {navTab === "profile" && (
             <motion.div
               key="tab-profile"
-              variants={tabContentVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.22, ease: "easeOut" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="pb-24 space-y-4"
             >
-              {isAuthLoading ? (
-                /* ── Skeleton while syncing silently with Supabase ── */
-                <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center`}>
-                  <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
-                  <div className={`w-20 h-20 rounded-full ${d ? "bg-white/10" : "bg-black/10"} animate-pulse mb-4`} />
-                  <div className={`w-36 h-5 rounded-xl ${d ? "bg-white/10" : "bg-black/10"} animate-pulse mb-2`} />
-                  <div className={`w-28 h-3.5 rounded-lg ${d ? "bg-white/5" : "bg-black/5"} animate-pulse mb-6`} />
-                  <div className="w-full grid grid-cols-2 gap-3 mb-5">
-                    <div className={`h-16 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
-                    <div className={`h-16 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
+              <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center text-center`}>
+                <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
+
+                {/* Avatar Photo */}
+                <div className="relative mb-3">
+                  {authUser?.photoUrl || telegramUser?.photoUrl ? (
+                    <img
+                      src={authUser?.photoUrl || telegramUser?.photoUrl}
+                      alt={authUser?.name || "User"}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-white/20 shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#7928CA] flex items-center justify-center text-white text-2xl font-bold border-2 border-white/20 shadow-lg shadow-[#007AFF]/20">
+                      {(authUser?.name || telegramUser?.firstName || "U")[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#34C759] border-2 border-[#07070b] flex items-center justify-center shadow-md">
+                    <Check size={12} className="text-white stroke-[3]" />
                   </div>
-                  <div className={`w-full h-12 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
                 </div>
-              ) : (
-                /* ── Verified Profile Card in Liquid Glass ── */
-                <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center`}>
-                  <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
 
-                  {/* Avatar */}
-                  <div className="relative mb-3">
-                    {authUser?.photoUrl || telegramUser?.photoUrl ? (
-                      <img
-                        src={authUser?.photoUrl || telegramUser?.photoUrl}
-                        alt={authUser?.name || "User"}
-                        className="w-20 h-20 rounded-full object-cover border-2 border-white/20 shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#7928CA] flex items-center justify-center text-white text-2xl font-bold border-2 border-white/20 shadow-lg shadow-[#007AFF]/20">
-                        {(authUser?.name || telegramUser?.firstName || "U")[0].toUpperCase()}
-                      </div>
-                    )}
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#34C759] border-2 border-[#07070b] flex items-center justify-center shadow-md">
-                      <Check size={12} className="text-white stroke-[3]" />
+                {/* Name */}
+                <h2 className={`text-[19px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"} flex items-center gap-1.5`}>
+                  <span>{authUser?.name || telegramUser?.firstName || (lang === "RU" ? "Пользователь" : "Foydalanuvchi")}</span>
+                  {(authUser?.isPremium || telegramUser?.isPremium) && (
+                    <span className="text-[10px] bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full shadow-sm">
+                      ★ PRO
+                    </span>
+                  )}
+                </h2>
+
+                {/* Username & ID */}
+                <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} mt-0.5 mb-2 font-mono flex items-center justify-center gap-2 flex-wrap`}>
+                  {telegramUser?.username && <span>@{telegramUser.username}</span>}
+                  {telegramUser?.username && (authUser?.telegramId || telegramUser?.telegramId) && <span>•</span>}
+                  <span>ID: {authUser?.telegramId || telegramUser?.telegramId || "—"}</span>
+                </p>
+
+                {/* Verified Phone Badge */}
+                {authUser?.phone && (
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${d ? "bg-white/5 border-white/10 text-white/80" : "bg-black/5 border-black/10 text-[#1C1C1E]/80"} text-[12px] font-mono mb-4 backdrop-blur-md`}>
+                    <Phone size={12} className="text-[#34C759]" />
+                    <span>{authUser.phone}</span>
+                  </div>
+                )}
+
+                {/* Stats Row */}
+                <div className="w-full grid grid-cols-2 gap-3 mb-4">
+                  <div
+                    onClick={() => setNavTab("bookings")}
+                    className={`cursor-pointer ${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md hover:border-[#007AFF]/40 transition-all`}
+                  >
+                    <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
+                      <Clock size={12} className="text-[#007AFF]" />
+                      <span>{lang === "RU" ? "Брони" : "Bandlovlar"}</span>
                     </div>
+                    <p className={`text-[17px] font-extrabold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                      {authUser?.bookings?.length || 0}
+                    </p>
                   </div>
 
-                  {/* Name and Username */}
-                  <h2 className={`text-[19px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"} flex items-center gap-1.5`}>
-                    <span>{authUser?.name || telegramUser?.firstName || (lang === "RU" ? "Пользователь" : "Foydalanuvchi")}</span>
-                    {(authUser?.isPremium || telegramUser?.isPremium) && (
-                      <span className="text-[10px] bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full shadow-sm">
-                        ★ PRO
-                      </span>
-                    )}
-                  </h2>
-                  <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} mt-0.5 mb-2 font-mono flex items-center justify-center gap-2 flex-wrap`}>
-                    {telegramUser?.username && <span>@{telegramUser.username}</span>}
-                    {telegramUser?.username && (authUser?.telegramId || telegramUser?.telegramId) && <span>•</span>}
-                    <span>ID: {authUser?.telegramId || telegramUser?.telegramId || "—"}</span>
-                  </p>
-
-                  {/* Phone Badge */}
-                  {authUser?.phone && (
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${d ? "bg-white/5 border-white/10 text-white/80" : "bg-black/5 border-black/10 text-[#1C1C1E]/80"} text-[12px] font-mono mb-4 backdrop-blur-md`}>
-                      <Phone size={12} className="text-[#34C759]" />
-                      <span>{authUser.phone}</span>
+                  <div className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md`}>
+                    <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
+                      <ShieldCheck size={12} className="text-[#34C759]" />
+                      <span>{lang === "RU" ? "Статус" : "Status"}</span>
                     </div>
-                  )}
-
-                  {/* Stats Row */}
-                  <div className="w-full grid grid-cols-2 gap-3 mb-4">
-                    <div className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md`}>
-                      <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
-                        <Clock size={12} className="text-[#007AFF]" />
-                        <span>{lang === "RU" ? "Брони" : "Bandlovlar"}</span>
-                      </div>
-                      <p className={`text-[17px] font-extrabold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                        {authUser?.bookings?.length || 0}
-                      </p>
-                    </div>
-
-                    <div className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md`}>
-                      <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
-                        <ShieldCheck size={12} className="text-[#34C759]" />
-                        <span>{lang === "RU" ? "Статус" : "Status"}</span>
-                      </div>
-                      <p className="text-[15px] font-bold text-[#34C759]">
-                        {lang === "RU" ? "Подтвержден" : "Tasdiqlangan"}
-                      </p>
-                    </div>
+                    <p className="text-[15px] font-bold text-[#34C759]">
+                      {lang === "RU" ? "Подтвержден" : "Tasdiqlangan"}
+                    </p>
                   </div>
+                </div>
 
-                  {/* Recent Bookings Section if available */}
-                  {authUser?.bookings && authUser.bookings.length > 0 && (
-                    <div className="w-full mb-4">
-                      <div className="text-left mb-2 px-1">
-                        <h4 className={`text-[12px] font-bold uppercase tracking-wider ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                          {lang === "RU" ? "История броней" : "Bandlovlar tarixi"}
-                        </h4>
-                      </div>
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-none">
-                        {authUser.bookings.slice(0, 3).map((b: any) => (
-                          <div
-                            key={b.id}
-                            className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 flex items-center justify-between text-left`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className={`text-[13px] font-semibold ${d ? "text-white" : "text-[#1C1C1E]"} truncate`}>
-                                {b.usedProduct?.title || b.variant?.template?.title || "iPhone"}
-                              </p>
-                              <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
-                                {new Date(b.createdAt).toLocaleDateString(lang === "RU" ? "ru-RU" : "uz-UZ")}
-                              </p>
-                            </div>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              b.status === "CONFIRMED"
-                                ? "bg-[#34C759]/15 text-[#34C759] border border-[#34C759]/25"
-                                : b.status === "CANCELLED"
-                                ? "bg-[#FF3B30]/15 text-[#FF3B30] border border-[#FF3B30]/25"
-                                : "bg-[#FF9500]/15 text-[#FF9500] border border-[#FF9500]/25"
-                            }`}>
-                              {b.status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                {/* Quick Actions */}
+                <div className="w-full space-y-2">
+                  <button
+                    onClick={() => setIsTradeInOpen(true)}
+                    className={`w-full py-3 rounded-2xl ${
+                      d ? "bg-white/10 hover:bg-white/15 text-white" : "bg-black/5 hover:bg-black/10 text-[#1C1C1E]"
+                    } text-[13px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer`}
+                  >
+                    <ArrowLeftRight size={15} className="text-[#007AFF]" />
+                    <span>{lang === "RU" ? "Калькулятор Trade-In" : "Trade-In kalkulyatori"}</span>
+                  </button>
 
-                  {/* Contact Support Action */}
                   <a
-                    href="https://t.me/techstore_support"
+                    href="https://t.me/sebtech_admin"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`w-full py-3.5 rounded-2xl ${
-                      d
-                        ? "bg-white/10 hover:bg-white/15 border-white/15 text-white"
-                        : "bg-black/5 hover:bg-black/10 border-black/10 text-[#1C1C1E]"
-                    } border text-[13px] font-bold flex items-center justify-center gap-2 transition-all shadow-md backdrop-blur-md`}
+                    className={`w-full py-3 rounded-2xl ${
+                      d ? "bg-white/5 hover:bg-white/10 text-white/80" : "bg-black/[0.03] hover:bg-black/[0.06] text-[#1C1C1E]/80"
+                    } text-[13px] font-semibold flex items-center justify-center gap-2 transition-all`}
                   >
-                    <MessageCircle size={16} className="text-[#007AFF]" />
-                    {lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"}
+                    <MessageCircle size={15} className="text-[#34C759]" />
+                    <span>{lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"}</span>
                   </a>
                 </div>
-              )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ══════════ 5. TAB: SETTINGS (НАСТРОЙКИ) ══════════ */}
+          {navTab === "settings" && (
+            <motion.div
+              key="tab-settings"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SettingsTab
+                user={authUser}
+                telegramUser={telegramUser}
+                isDark={d}
+                lang={lang}
+                onLangChange={setLang}
+                onThemeChange={(th) => setTheme(th)}
+                currentTheme={theme || "system"}
+                onNameUpdate={handleNameUpdate}
+                onShowToast={(msg, typ) => setToastState({ message: msg, visible: true, type: typ })}
+              />
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
       {/* ═══════════════════════════════════════════════════
-          FLOATING CART PANEL (Only if items exist)
+          LIQUID GLASS BOTTOM NAVIGATION BAR
           ═══════════════════════════════════════════════════ */}
-      {itemCount > 0 && (
-        <CartPanel
-          shopId={shop.id}
-          isDark={d}
-          lang={lang}
-          currency={currency}
-          currencyRate={shop.currencyRate}
-        />
-      )}
+      <BottomNavBar
+        activeTab={navTab}
+        onTabChange={setNavTab}
+        isDark={d}
+        lang={lang}
+        cartCount={itemCount}
+        bookingsCount={authUser?.bookings?.length || 0}
+      />
 
       {/* ═══════════════════════════════════════════════════
-          PRODUCT BOTTOM SHEET
+          PRODUCT BOTTOM SHEET (NEW PRODUCT CONFIGURATOR)
           ═══════════════════════════════════════════════════ */}
       <ProductBottomSheet
         isOpen={!!selectedProduct}
@@ -857,7 +983,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
       />
 
       {/* ═══════════════════════════════════════════════════
-          TRADE-IN CALCULATOR
+          TRADE-IN CALCULATOR (5 FREE ATTEMPTS)
           ═══════════════════════════════════════════════════ */}
       <TradeInCalculator
         isOpen={isTradeInOpen}

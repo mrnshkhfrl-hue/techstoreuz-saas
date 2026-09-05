@@ -148,12 +148,27 @@ export function extractTelegramUser(): TelegramWebAppUser | null {
       }
     }
 
-    // 4. From window.location.search (?tgWebAppData=... or ?user=...)
+    // 4. From window.location.search (?tgWebAppData=... or ?user=... or ?tgId=...)
     if (window.location.search) {
       const u = parseUserFromQueryString(window.location.search);
       if (u) {
         sessionStorage.setItem('tg_shop_user', JSON.stringify(u));
         return u;
+      }
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const tgIdParam = searchParams.get('tgId') || searchParams.get('userId');
+      if (tgIdParam && !isNaN(Number(tgIdParam))) {
+        const directUser: TelegramWebAppUser = {
+          telegramId: Number(tgIdParam),
+          firstName: searchParams.get('name') || searchParams.get('firstName') || 'User',
+          username: searchParams.get('username') || '',
+          lastName: searchParams.get('lastName') || '',
+          languageCode: 'ru',
+          isPremium: false,
+        };
+        sessionStorage.setItem('tg_shop_user', JSON.stringify(directUser));
+        return directUser;
       }
     }
 

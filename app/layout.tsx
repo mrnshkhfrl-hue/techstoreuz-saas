@@ -44,9 +44,9 @@ export default async function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
       </head>
       <body className="font-sans antialiased bg-surface-primary text-foreground min-h-screen relative selection:bg-[#007AFF]/30 transition-colors duration-200">
-        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AnimatedBackground />
           <CurrencyProvider initialExchangeRate={initialExchangeRate}>

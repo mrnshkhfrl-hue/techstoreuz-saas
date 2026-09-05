@@ -173,6 +173,18 @@ export default function TradeInCalculator({
     full_kit: true,
   });
 
+  /* 5 Free Attempts limit */
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [isLimitExceeded, setIsLimitExceeded] = useState(false);
+
+  // Load used attempts from localStorage
+  useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tradein_attempts_used");
+      if (saved) setAttemptsUsed(Number(saved));
+    }
+  });
+
   /* Derived */
   const models = MODELS[selectedBrand] || [];
   const modelName =
@@ -193,12 +205,28 @@ export default function TradeInCalculator({
 
   function goNext() {
     if (!canProceed) return;
+
+    // Check attempt limit when transitioning to step 5 (Result)
+    if (step === 4) {
+      const currentSaved = typeof window !== "undefined" ? Number(localStorage.getItem("tradein_attempts_used") || "0") : attemptsUsed;
+      if (currentSaved >= 5) {
+        setIsLimitExceeded(true);
+      } else {
+        const nextAttempts = currentSaved + 1;
+        setAttemptsUsed(nextAttempts);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tradein_attempts_used", String(nextAttempts));
+        }
+      }
+    }
+
     setDirection(1);
     setStep((s) => Math.min(s + 1, 5));
   }
 
   function goBack() {
     setDirection(-1);
+    setIsLimitExceeded(false);
     setStep((s) => Math.max(s - 1, 1));
   }
 
@@ -561,51 +589,102 @@ export default function TradeInCalculator({
                     transition={{ type: "spring", stiffness: 350, damping: 30 }}
                     className="flex flex-col items-center text-center pt-4"
                   >
-                    {/* Success icon */}
-                    <motion.div
-                      initial={{ scale: 0, rotate: -20 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-                      className="w-20 h-20 rounded-glass bg-[#007AFF]/10 border border-[#007AFF]/15 flex items-center justify-center mb-6 shadow-xl shadow-[#007AFF]/10"
-                    >
-                      <ArrowLeftRight size={32} className="text-[#007AFF]" />
-                    </motion.div>
+                    {isLimitExceeded ? (
+                      <div className="flex flex-col items-center text-center space-y-4 w-full">
+                        <motion.div
+                          initial={{ scale: 0, rotate: -20 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                          className="w-20 h-20 rounded-full bg-[#FF9500]/15 border border-[#FF9500]/25 flex items-center justify-center mb-2 shadow-xl shadow-[#FF9500]/10"
+                        >
+                          <Sparkles size={32} className="text-[#FF9500]" />
+                        </motion.div>
 
-                    <h2 className={`text-2xl font-bold tracking-tight mb-2 ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {lang === "RU" ? "Предварительная оценка" : "Dastlabki baho"}
-                    </h2>
-                    
-                    <p className={`text-[13px] mb-6 max-w-[260px] leading-relaxed ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                      {lang === "RU"
-                        ? `За ваш ${brandName} ${modelName} (${selectedStorage}) мы готовы предложить:`
-                        : `Sizning ${brandName} ${modelName} (${selectedStorage}) uchun taklif qilamiz:`}
-                    </p>
+                        <h2 className={`text-2xl font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                          {lang === "RU" ? "Лимит оценок исчерпан (5/5)" : "Baholash limiti tugadi (5/5)"}
+                        </h2>
+                        
+                        <p className={`text-[13px] max-w-[280px] leading-relaxed ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
+                          {lang === "RU"
+                            ? "Вы использовали все 5 бесплатных расчетов Trade-In. Для персональной и точной оценки свяжитесь с нашим менеджером!"
+                            : "Siz barcha 5 ta bepul Trade-In hisobidan foydalandingiz. Qurilmani aniq baholash uchun menejerimizga murojaat qiling!"}
+                        </p>
 
-                    <div className="liquid-glass glass-edge-highlight p-5 rounded-glass w-full mb-6 relative overflow-hidden">
-                      {/* Subdued glow */}
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#007AFF]/10 rounded-full blur-2xl" />
-                      
-                      <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${d ? "text-[#007AFF]" : "text-[#007AFF]"}`}>
-                        {lang === "RU" ? "Скидка до" : "Chegirma"}
-                      </p>
-                      <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className={`text-[34px] font-black tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}
-                      >
-                        {fmtPrice(estimatedUSD, currencyRate, currency)}
-                      </motion.p>
-                    </div>
+                        <div className="w-full space-y-2.5 pt-2">
+                          <a
+                            href="https://t.me/sebtech_admin"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 shadow-lg shadow-[#007AFF]/25"
+                          >
+                            <MessageCircle size={18} />
+                            <span>{lang === "RU" ? "Написать менеджеру в Telegram" : "Telegram orqali menejerga yozish"}</span>
+                          </a>
 
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      transition={tapSpring}
-                      className="w-full py-4 btn-system-blue text-[15px] rounded-glass-btn flex items-center justify-center gap-2 mb-3"
-                    >
-                      <MessageCircle size={18} />
-                      {lang === "RU" ? "Связаться с менеджером" : "Menejer bilan bog'lanish"}
-                    </motion.button>
+                          <a
+                            href="tel:+998772859999"
+                            className={`w-full py-3.5 rounded-glass-btn text-[14px] font-bold flex items-center justify-center gap-2 border ${
+                              d ? "bg-white/5 border-white/10 text-white" : "bg-black/5 border-black/10 text-[#1C1C1E]"
+                            }`}
+                          >
+                            <span>+998 77 285-99-99</span>
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Success icon */}
+                        <motion.div
+                          initial={{ scale: 0, rotate: -20 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                          className="w-20 h-20 rounded-glass bg-[#007AFF]/10 border border-[#007AFF]/15 flex items-center justify-center mb-6 shadow-xl shadow-[#007AFF]/10"
+                        >
+                          <ArrowLeftRight size={32} className="text-[#007AFF]" />
+                        </motion.div>
+
+                        <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34C759]/15 border border-[#34C759]/25 text-[#34C759] text-[11px] font-bold">
+                          <span>{lang === "RU" ? `Оценка ${attemptsUsed} из 5` : `${attemptsUsed}/5 baholash`}</span>
+                        </div>
+
+                        <h2 className={`text-2xl font-bold tracking-tight mb-2 ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                          {lang === "RU" ? "Предварительная оценка" : "Dastlabki baho"}
+                        </h2>
+                        
+                        <p className={`text-[13px] mb-6 max-w-[260px] leading-relaxed ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
+                          {lang === "RU"
+                            ? `За ваш ${brandName} ${modelName} (${selectedStorage}) мы готовы предложить:`
+                            : `Sizning ${brandName} ${modelName} (${selectedStorage}) uchun taklif qilamiz:`}
+                        </p>
+
+                        <div className="liquid-glass glass-edge-highlight p-5 rounded-glass w-full mb-6 relative overflow-hidden">
+                          {/* Subdued glow */}
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#007AFF]/10 rounded-full blur-2xl" />
+                          
+                          <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${d ? "text-[#007AFF]" : "text-[#007AFF]"}`}>
+                            {lang === "RU" ? "Скидка до" : "Chegirma"}
+                          </p>
+                          <motion.p
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className={`text-[34px] font-black tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}
+                          >
+                            {fmtPrice(estimatedUSD, currencyRate, currency)}
+                          </motion.p>
+                        </div>
+
+                        <a
+                          href="https://t.me/sebtech_admin"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 mb-3 shadow-lg shadow-[#007AFF]/25"
+                        >
+                          <MessageCircle size={18} />
+                          <span>{lang === "RU" ? "Связаться с менеджером" : "Menejer bilan bog'lanish"}</span>
+                        </a>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
