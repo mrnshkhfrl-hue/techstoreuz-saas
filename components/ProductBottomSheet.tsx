@@ -11,9 +11,11 @@ import {
   Check,
   Smartphone,
   Fingerprint,
+  HardDrive,
 } from "lucide-react";
 import { useTelegramContext } from "@/components/TelegramProvider";
 import { useCart } from "@/providers/CartProvider";
+import { getModelPhoto, extractStorage } from "@/lib/product-images";
 
 /* ═══════════════════════════════════════════════════════
    TYPES
@@ -279,12 +281,17 @@ export default function ProductBottomSheet({
               <div className="flex justify-center px-5 pb-4">
                 <div
                   className={`
-                    w-40 h-48 rounded-glass flex items-center justify-center
+                    w-48 h-52 rounded-glass flex items-center justify-center overflow-hidden
                     ${d ? "bg-gradient-to-b from-white/[0.03] to-white/[0.01]" : "bg-gradient-to-b from-black/[0.02] to-transparent"}
                   `}
                 >
-                  <PhoneSilhouette
-                    className={`w-20 h-32 ${d ? "text-white" : "text-gray-400"}`}
+                  <img
+                    src={getModelPhoto(product?.title)}
+                    alt={product?.title || "Device"}
+                    className="w-full h-full object-contain p-2 drop-shadow-xl transition-transform duration-300"
+                    onError={(e) => {
+                      e.currentTarget.src = "/products/iphone15pro_1.webp";
+                    }}
                   />
                 </div>
               </div>
@@ -418,6 +425,21 @@ export default function ProductBottomSheet({
 
                   {/* Specs grid */}
                   <div className="grid grid-cols-2 gap-2.5">
+                    {/* Storage / Memory */}
+                    <div className={`flex items-center gap-2.5 px-4 py-3.5 rounded-glass-btn liquid-glass`}>
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-glass-xs ${chipBase}`}>
+                        <HardDrive size={14} className="text-[#007AFF]" />
+                      </div>
+                      <div>
+                        <p className={`text-[10px] font-medium ${d ? "text-white/25" : "text-[#1C1C1E]/25"}`}>
+                          {lang === "RU" ? "Память" : "Xotira"}
+                        </p>
+                        <p className={`text-[14px] font-bold ${d ? "text-white/90" : "text-[#1C1C1E]"}`}>
+                          {extractStorage(product.title)}
+                        </p>
+                      </div>
+                    </div>
+
                     {/* Battery */}
                     <div className={`flex items-center gap-2.5 px-4 py-3.5 rounded-glass-btn liquid-glass`}>
                       <div className={`flex items-center justify-center w-8 h-8 rounded-glass-xs border ${batteryColor}`}>
@@ -464,9 +486,9 @@ export default function ProductBottomSheet({
                     </div>
 
                     {/* Defects */}
-                    <div className={`flex items-center gap-2.5 px-4 py-3.5 rounded-glass-btn liquid-glass`}>
+                    <div className={`col-span-2 flex items-center gap-2.5 px-4 py-3 rounded-glass-btn liquid-glass`}>
                       <div
-                        className={`flex items-center justify-center w-8 h-8 rounded-glass-xs ${
+                        className={`flex items-center justify-center w-8 h-8 rounded-glass-xs shrink-0 ${
                           product.defects
                             ? d
                               ? "bg-[#FF9500]/10 text-[#FF9500] border border-[#FF9500]/15"
@@ -478,10 +500,10 @@ export default function ProductBottomSheet({
                       </div>
                       <div>
                         <p className={`text-[10px] font-medium ${d ? "text-white/25" : "text-[#1C1C1E]/25"}`}>
-                          {lang === "RU" ? "Дефекты" : "Nuqsonlar"}
+                          {lang === "RU" ? "Дефекты и состояние" : "Nuqsonlar va holat"}
                         </p>
                         <p className={`text-[12px] font-bold leading-tight ${d ? "text-white/90" : "text-[#1C1C1E]"}`}>
-                          {product.defects || (lang === "RU" ? "Нет" : "Yo'q")}
+                          {product.defects || (lang === "RU" ? "Идеальное состояние, без дефектов" : "Mukammal holatda, nuqsonsiz")}
                         </p>
                       </div>
                     </div>

@@ -196,8 +196,8 @@ bot.hears(["ℹ️ Biz haqimizda", "ℹ️ О нас"], async (ctx) => {
 bot.hears(["📞 Qo'llab-quvvatlash", "📞 Поддержка"], async (ctx) => {
   const isUz = ctx.message?.text === "📞 Qo'llab-quvvatlash";
   const text = isUz 
-    ? "📞 Bizning mutaxassislarimiz bilan bog'lanish:\n\n📞 <b>+998 77 285-99-99</b>\n✈️ Telegram: @sebtech_admin"
-    : "📞 Связаться с нашими специалистами:\n\n📞 <b>+998 77 285-99-99</b>\n✈️ Telegram: @sebtech_admin";
+    ? "📞 Bizning mutaxassislarimiz bilan bog'lanish:\n\n📞 <b>+998 77 285-99-99</b>\n✈️ Telegram: @mrnshkx"
+    : "📞 Связаться с нашими специалистами:\n\n📞 <b>+998 77 285-99-99</b>\n✈️ Telegram: @mrnshkx";
   await ctx.reply(text, { parse_mode: "HTML" });
 });
 

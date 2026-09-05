@@ -36,6 +36,7 @@ import SettingsTab from "@/components/SettingsTab";
 import BookingsTab from "@/components/BookingsTab";
 import { useTelegramAuth } from "@/hooks/useTelegramAuth";
 import { useCart } from "@/providers/CartProvider";
+import { getModelPhoto, extractStorage } from "@/lib/product-images";
 
 /* ═══════════════════════════════════════════════════════
    HELPERS
@@ -94,6 +95,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
   // Catalog sub-tab: New vs Used
   const [catalogSubTab, setCatalogSubTab] = useState<"new" | "used">("new");
+  const [catalogSearch, setCatalogSearch] = useState("");
 
   // Used products filters & view mode
   const [usedViewMode, setUsedViewMode] = useState<"grid" | "list">("list");
@@ -124,15 +126,27 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
     type: "success" | "error";
   }>({ message: "", visible: false, type: "success" });
 
-  /* ── Filtered Used Products ── */
+  /* ── Filtered New Products ── */
+  const filteredNewProducts = useMemo(() => {
+    if (!shop.newProducts) return [];
+    if (!catalogSearch.trim()) return shop.newProducts;
+    const q = catalogSearch.toLowerCase();
+    return shop.newProducts.filter((p: any) => p.title.toLowerCase().includes(q));
+  }, [shop.newProducts, catalogSearch]);
+
+  /* ── Filtered Used Products (Hides Booked Devices!) ── */
   const filteredUsedProducts = useMemo(() => {
     if (!shop.usedProducts) return [];
     return shop.usedProducts.filter((p: any) => {
-      // Search
-      if (usedSearch.trim()) {
-        const q = usedSearch.toLowerCase();
-        if (!p.title.toLowerCase().includes(q)) return false;
+      // Hide already booked devices from public catalog!
+      if (p.status === "BOOKED") return false;
+
+      // Search (global catalogSearch OR usedSearch)
+      const effectiveSearch = (catalogSearch.trim() || usedSearch.trim()).toLowerCase();
+      if (effectiveSearch && !p.title.toLowerCase().includes(effectiveSearch)) {
+        return false;
       }
+
       // Battery
       if (usedBatteryFilter === "95+") {
         if (p.batteryHealth < 95) return false;
@@ -143,13 +157,14 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
       } else if (usedBatteryFilter === "70+") {
         if (p.batteryHealth < 70 || p.batteryHealth >= 80) return false;
       }
+
       // Storage
       if (usedStorageFilter !== "all") {
         if (!p.title.toLowerCase().includes(usedStorageFilter.toLowerCase())) return false;
       }
       return true;
     });
-  }, [shop.usedProducts, usedSearch, usedBatteryFilter, usedStorageFilter]);
+  }, [shop.usedProducts, catalogSearch, usedSearch, usedBatteryFilter, usedStorageFilter]);
 
   /* ── 1-Click Direct Booking on Used Device ── */
   const handleBookUsedProduct = async (product: any) => {
@@ -175,8 +190,8 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         setToastState({
           message:
             lang === "RU"
-              ? `«${product.title}» успешно забронирован на 24 часа!`
-              : `«${product.title}» 24 soatga band qilindi!`,
+              ? `Заявка отправлена! Менеджер свяжется с вами для подтверждения брони.`
+              : `Ariza yuborildi! Menejer tasdiqlash uchun siz bilan bog'lanadi.`,
           visible: true,
           type: "success",
         });
@@ -262,8 +277,8 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         setToastState({
           message:
             lang === "RU"
-              ? "Заказ успешно оформлен! Ждем вас в филиале."
-              : "Buyurtma qabul qilindi! Filialimizda kutamiz.",
+              ? "Заявка принята! Менеджер свяжется с вами для подтверждения заказа."
+              : "Buyurtma qabul qilindi! Menejer tasdiqlash uchun siz bilan bog'lanadi.",
           visible: true,
           type: "success",
         });
@@ -343,136 +358,154 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
           MAIN CONTENT AREA BASED ON ACTIVE NAV TAB
           ═══════════════════════════════════════════════════ */}
       <main className="px-4 pt-3 min-h-[70vh]">
-        <AnimatePresence mode="wait">
-          {/* ══════════ 1. TAB: CATALOG (ГЛАВНАЯ) ══════════ */}
-          {navTab === "catalog" && (
+        {/* ══════════ 1. TAB: CATALOG (ГЛАВНАЯ) ══════════ */}
+        {navTab === "catalog" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Trade-In Banner */}
             <motion.div
-              key="tab-catalog"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4"
+              whileTap={{ scale: 0.98 }}
+              transition={tapSpring}
+              onClick={() => setIsTradeInOpen(true)}
+              className={`w-full rounded-3xl relative overflow-hidden cursor-pointer ${
+                d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"
+              } backdrop-blur-lg border group transition-all`}
             >
-              {/* Trade-In Banner */}
-              <motion.div
-                whileTap={{ scale: 0.98 }}
-                transition={tapSpring}
-                onClick={() => setIsTradeInOpen(true)}
-                className={`w-full rounded-3xl relative overflow-hidden cursor-pointer ${
-                  d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"
-                } backdrop-blur-lg border group transition-all`}
-              >
-                <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
-                  d ? "via-white/25" : "via-black/10"
-                } to-transparent pointer-events-none`} />
-                <div className="absolute -right-8 -top-8 w-36 h-36 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
+              <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+                d ? "via-white/25" : "via-black/10"
+              } to-transparent pointer-events-none`} />
+              <div className="absolute -right-8 -top-8 w-36 h-36 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
 
-                <div className="p-4 relative z-10 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <div className="w-5 h-5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 flex items-center justify-center text-[#007AFF]">
-                        <ArrowLeftRight size={10} />
-                      </div>
-                      <span className="text-[#007AFF] text-[10px] font-bold uppercase tracking-wider">
-                        Trade-in Express
-                      </span>
+              <div className="p-4 relative z-10 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <div className="w-5 h-5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 flex items-center justify-center text-[#007AFF]">
+                      <ArrowLeftRight size={10} />
                     </div>
-                    <h3 className={`text-[15px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {lang === "RU" ? "Обменяйте старое на новое" : "Eskisini yangisiga almashtiring"}
-                    </h3>
-                    <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
-                      {lang === "RU" ? "5 бесплатных расчетов за 1 минуту" : "1 daqiqada 5 ta bepul hisob"}
-                    </p>
+                    <span className="text-[#007AFF] text-[10px] font-bold uppercase tracking-wider">
+                      Trade-in Express
+                    </span>
                   </div>
-
-                  <span className="px-3.5 py-1.5 rounded-xl bg-[#007AFF] text-white text-[11px] font-bold shadow-md shadow-[#007AFF]/25">
-                    {lang === "RU" ? "Оценить →" : "Baholash →"}
-                  </span>
+                  <h3 className={`text-[15px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                    {lang === "RU" ? "Обменяйте старое на новое" : "Eskisini yangisiga almashtiring"}
+                  </h3>
+                  <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
+                    {lang === "RU" ? "5 бесплатных расчетов за 1 минуту" : "1 daqiqada 5 ta bepul hisob"}
+                  </p>
                 </div>
-              </motion.div>
 
-              {/* Sub-segmented control: New vs Used */}
-              <div
-                className={`flex p-[3px] rounded-full relative ${
-                  d ? "bg-white/[0.04] border border-white/[0.06]" : "bg-black/[0.04] border border-black/[0.04]"
+                <span className="px-3.5 py-1.5 rounded-xl bg-[#007AFF] text-white text-[11px] font-bold shadow-md shadow-[#007AFF]/25">
+                  {lang === "RU" ? "Оценить →" : "Baholash →"}
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Universal Catalog Search */}
+            <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border ${
+              d ? "bg-white/5 border-white/10 text-white" : "bg-black/[0.03] border-black/10 text-[#1C1C1E]"
+            }`}>
+              <Search size={15} className={d ? "text-white/40" : "text-black/40"} />
+              <input
+                type="text"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder={lang === "RU" ? "Поиск по каталогу (iPhone 15, 14 Pro...)" : "Katalog bo'yicha qidirish..."}
+                className="bg-transparent text-[13px] outline-none flex-1 placeholder:text-inherit/30"
+              />
+              {catalogSearch && (
+                <button onClick={() => setCatalogSearch("")} className="cursor-pointer">
+                  <X size={14} className="opacity-50 hover:opacity-100" />
+                </button>
+              )}
+            </div>
+
+            {/* Sub-segmented control: New vs Used */}
+            <div
+              className={`flex p-[3px] rounded-full relative ${
+                d ? "bg-white/[0.04] border border-white/[0.06]" : "bg-black/[0.04] border border-black/[0.04]"
+              }`}
+            >
+              <button
+                onClick={() => setCatalogSubTab("new")}
+                className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
+                  catalogSubTab === "new" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
                 }`}
               >
-                <button
-                  onClick={() => setCatalogSubTab("new")}
-                  className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
-                    catalogSubTab === "new" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
-                  }`}
-                >
-                  {catalogSubTab === "new" && (
-                    <motion.div
-                      layoutId="subTabHighlight"
-                      transition={{ type: "spring", stiffness: 450, damping: 30 }}
-                      className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
-                    />
-                  )}
-                  <span className="relative z-10">{lang === "RU" ? "Новые устройства" : "Yangi qurilmalar"}</span>
-                </button>
+                {catalogSubTab === "new" && (
+                  <motion.div
+                    layoutId="subTabHighlight"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                    className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
+                  />
+                )}
+                <span className="relative z-10">{lang === "RU" ? "Новые устройства" : "Yangi qurilmalar"}</span>
+              </button>
 
-                <button
-                  onClick={() => setCatalogSubTab("used")}
-                  className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
-                    catalogSubTab === "used" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
-                  }`}
-                >
-                  {catalogSubTab === "used" && (
-                    <motion.div
-                      layoutId="subTabHighlight"
-                      transition={{ type: "spring", stiffness: 450, damping: 30 }}
-                      className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
-                    />
-                  )}
-                  <span className="relative z-10">{lang === "RU" ? "Б/У с гарантией" : "Kafolatli B/U"}</span>
-                </button>
+              <button
+                onClick={() => setCatalogSubTab("used")}
+                className={`relative flex-1 py-2 text-[13px] font-bold rounded-full transition-colors z-10 cursor-pointer ${
+                  catalogSubTab === "used" ? "text-white" : d ? "text-white/40" : "text-[#1C1C1E]/40"
+                }`}
+              >
+                {catalogSubTab === "used" && (
+                  <motion.div
+                    layoutId="subTabHighlight"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                    className="absolute inset-0 rounded-full bg-[#007AFF] shadow-lg shadow-[#007AFF]/25"
+                  />
+                )}
+                <span className="relative z-10">{lang === "RU" ? "Б/У с гарантией" : "Kafolatli B/U"}</span>
+              </button>
+            </div>
+
+            {/* ── SUB-VIEW: NEW PRODUCTS ── */}
+            {catalogSubTab === "new" && (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                {filteredNewProducts.length > 0 ? (
+                  filteredNewProducts.map((p: any) => {
+                    const minPrice = p.variants?.length
+                      ? Math.min(...p.variants.map((v: any) => v.price))
+                      : p.basePrice;
+
+                    return (
+                      <motion.div
+                        key={p.id}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => setSelectedProduct(p)}
+                        className={`rounded-3xl p-3.5 flex flex-col cursor-pointer border relative overflow-hidden transition-all group ${
+                          d
+                            ? "bg-white/5 border-white/10 hover:border-white/20 shadow-xl"
+                            : "bg-white border-black/10 hover:border-black/20 shadow-sm"
+                        }`}
+                      >
+                        <div className="w-full h-28 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent overflow-hidden">
+                          <img
+                            src={getModelPhoto(p.title)}
+                            alt={p.title}
+                            className="w-full h-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.currentTarget.src = "/products/iphone15pro_1.webp";
+                            }}
+                          />
+                        </div>
+                        <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                          {p.title}
+                        </h4>
+                        <p className="text-[10px] text-emerald-400 font-semibold mb-1">
+                          {lang === "RU" ? "Новый • В наличии" : "Yangi • Mavjud"}
+                        </p>
+                        <p className="text-[14px] font-extrabold text-[#007AFF] mt-auto">
+                          {fmtPrice(minPrice, shop.currencyRate, currency)}
+                        </p>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-2 text-center py-12 text-white/40 text-[13px]">
+                    {lang === "RU" ? "Устройств не найдено" : "Qurilmalar topilmadi"}
+                  </div>
+                )}
               </div>
-
-              {/* ── SUB-VIEW: NEW PRODUCTS ── */}
-              {catalogSubTab === "new" && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  {shop.newProducts?.length > 0 ? (
-                    shop.newProducts.map((p: any) => {
-                      const minPrice = p.variants?.length
-                        ? Math.min(...p.variants.map((v: any) => v.price))
-                        : p.basePrice;
-
-                      return (
-                        <motion.div
-                          key={p.id}
-                          whileTap={{ scale: 0.96 }}
-                          onClick={() => setSelectedProduct(p)}
-                          className={`rounded-3xl p-3.5 flex flex-col cursor-pointer border relative overflow-hidden transition-all ${
-                            d
-                              ? "bg-white/5 border-white/10 hover:border-white/20 shadow-xl"
-                              : "bg-white border-black/10 hover:border-black/20 shadow-sm"
-                          }`}
-                        >
-                          <div className="w-full h-28 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent">
-                            <PhoneSilhouette className={`w-14 h-24 ${d ? "text-white" : "text-gray-400"}`} />
-                          </div>
-                          <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                            {p.title}
-                          </h4>
-                          <p className="text-[10px] text-emerald-400 font-semibold mb-1">
-                            {lang === "RU" ? "Новый • В наличии" : "Yangi • Mavjud"}
-                          </p>
-                          <p className="text-[14px] font-extrabold text-[#007AFF] mt-auto">
-                            {fmtPrice(minPrice, shop.currencyRate, currency)}
-                          </p>
-                        </motion.div>
-                      );
-                    })
-                  ) : (
-                    <div className="col-span-2 text-center py-12 text-white/40 text-[13px]">
-                      {lang === "RU" ? "Нет новых устройств" : "Yangi qurilmalar yo'q"}
-                    </div>
-                  )}
-                </div>
-              )}
+            )}
 
               {/* ── SUB-VIEW: USED PRODUCTS (WITH FILTERS & GRID/LIST SWITCH) ── */}
               {catalogSubTab === "used" && (
@@ -578,125 +611,128 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   ) : usedViewMode === "grid" ? (
                     /* Grid View (2 cols) */
                     <div className="grid grid-cols-2 gap-3">
-                      {filteredUsedProducts.map((p: any) => {
-                        const isBooked = p.status === "BOOKED";
-                        return (
-                          <div
-                            key={p.id}
-                            className={`p-3.5 rounded-3xl border flex flex-col justify-between transition-all ${
-                              d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
-                            } ${isBooked ? "opacity-50" : ""}`}
-                          >
-                            <div>
-                              <div className="w-full h-24 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent">
-                                <PhoneSilhouette className={`w-12 h-20 ${d ? "text-white" : "text-gray-400"}`} />
-                              </div>
-                              <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                                {p.title}
-                              </h4>
-                              <div className="flex items-center gap-1 mt-1 mb-2">
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
-                                  🔋 {p.batteryHealth}%
-                                </span>
+                      {filteredUsedProducts.map((p: any) => (
+                        <div
+                          key={p.id}
+                          className={`p-3.5 rounded-3xl border flex flex-col justify-between transition-all group ${
+                            d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                          }`}
+                        >
+                          <div>
+                            <div className="w-full h-24 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent overflow-hidden">
+                              <img
+                                src={getModelPhoto(p.title)}
+                                alt={p.title}
+                                className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.src = "/products/iphone15pro_1.webp";
+                                }}
+                              />
+                            </div>
+                            <h4 className={`text-[13px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                              {p.title}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-1 mt-1 mb-2">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF]">
+                                💾 {extractStorage(p.title)}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
+                                🔋 {p.batteryHealth}%
+                              </span>
+                              {p.region && (
                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-black/60"}`}>
                                   {p.region}
                                 </span>
-                              </div>
-                            </div>
-
-                            <div className="mt-2 pt-2 border-t border-white/5 flex flex-col gap-2">
-                              <span className="text-[13px] font-extrabold text-[#007AFF]">
-                                {fmtPrice(p.price, shop.currencyRate, currency)}
-                              </span>
-                              <button
-                                disabled={isBooked || isBookingLoading}
-                                onClick={() => handleBookUsedProduct(p)}
-                                className={`w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all ${
-                                  isBooked
-                                    ? "bg-white/10 text-white/40 cursor-not-allowed"
-                                    : "bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/20"
-                                }`}
-                              >
-                                <span>{isBooked ? (lang === "RU" ? "Забронирован" : "Band") : (lang === "RU" ? "Забронировать" : "Band qilish")}</span>
-                              </button>
+                              )}
                             </div>
                           </div>
-                        );
-                      })}
+
+                          <div className="mt-2 pt-2 border-t border-white/5 flex flex-col gap-2">
+                            <span className="text-[13px] font-extrabold text-[#007AFF]">
+                              {fmtPrice(p.price, shop.currencyRate, currency)}
+                            </span>
+                            <button
+                              disabled={isBookingLoading}
+                              onClick={() => handleBookUsedProduct(p)}
+                              className="w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/20"
+                            >
+                              <Clock size={12} />
+                              <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     /* Detailed List View */
                     <div className="space-y-3">
-                      {filteredUsedProducts.map((p: any) => {
-                        const isBooked = p.status === "BOOKED";
-                        return (
-                          <div
-                            key={p.id}
-                            className={`p-4 rounded-3xl border flex gap-3.5 transition-all ${
-                              d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
-                            } ${isBooked ? "opacity-50" : ""}`}
-                          >
-                            <div className={`w-[72px] h-[92px] rounded-2xl flex items-center justify-center shrink-0 ${d ? "bg-white/[0.02]" : "bg-black/[0.02]"}`}>
-                              <PhoneSilhouette className={`w-10 h-16 ${d ? "text-white" : "text-gray-400"}`} />
+                      {filteredUsedProducts.map((p: any) => (
+                        <div
+                          key={p.id}
+                          className={`p-4 rounded-3xl border flex gap-3.5 transition-all group ${
+                            d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                          }`}
+                        >
+                          <div className={`w-[76px] h-[92px] rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${d ? "bg-white/[0.02]" : "bg-black/[0.02]"}`}>
+                            <img
+                              src={getModelPhoto(p.title)}
+                              alt={p.title}
+                              className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.src = "/products/iphone15pro_1.webp";
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                            <div>
+                              <h4 className={`text-[14px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                                {p.title}
+                              </h4>
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF]">
+                                  💾 {extractStorage(p.title)}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
+                                  🔋 {p.batteryHealth}% АКБ
+                                </span>
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
+                                  🌍 {p.region}
+                                </span>
+                                {p.hasBox && (
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
+                                    📦 {lang === "RU" ? "Коробка" : "Quti"}
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
-                            <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                              <div>
-                                <h4 className={`text-[14px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                                  {p.title}
-                                </h4>
-                                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
-                                    🔋 {p.batteryHealth}% АКБ
-                                  </span>
-                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
-                                    🌍 {p.region}
-                                  </span>
-                                  {p.hasBox && (
-                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${d ? "bg-white/5 text-white/60" : "bg-black/5 text-[#1C1C1E]/60"}`}>
-                                      📦 {lang === "RU" ? "Коробка" : "Quti"}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
-                                <span className="text-[15px] font-extrabold text-[#007AFF]">
-                                  {fmtPrice(p.price, shop.currencyRate, currency)}
-                                </span>
-                                <button
-                                  disabled={isBooked || isBookingLoading}
-                                  onClick={() => handleBookUsedProduct(p)}
-                                  className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all ${
-                                    isBooked
-                                      ? "bg-white/10 text-white/40 cursor-not-allowed"
-                                      : "bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/25"
-                                  }`}
-                                >
-                                  <Clock size={12} />
-                                  <span>{isBooked ? (lang === "RU" ? "Забронирован" : "Band") : (lang === "RU" ? "Забронировать" : "Band qilish")}</span>
-                                </button>
-                              </div>
+                            <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
+                              <span className="text-[15px] font-extrabold text-[#007AFF]">
+                                {fmtPrice(p.price, shop.currencyRate, currency)}
+                              </span>
+                              <button
+                                disabled={isBookingLoading}
+                                onClick={() => handleBookUsedProduct(p)}
+                                className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/25"
+                              >
+                                <Clock size={12} />
+                                <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
+                              </button>
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════ 2. TAB: BOOKINGS (БРОНИ) ══════════ */}
           {navTab === "bookings" && (
-            <motion.div
-              key="tab-bookings"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            <div className="animate-in fade-in duration-200">
               <BookingsTab
                 user={authUser}
                 isDark={d}
@@ -708,19 +744,12 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   setCatalogSubTab("used");
                 }}
               />
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════ 3. TAB: CART (КОРЗИНА) ══════════ */}
           {navTab === "cart" && (
-            <motion.div
-              key="tab-cart"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4 pb-24"
-            >
+            <div className="space-y-4 pb-24 animate-in fade-in duration-200">
               <div className="px-1">
                 <h2 className={`text-[20px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                   {lang === "RU" ? "Корзина покупок" : "Xaridlar savati"}
@@ -818,19 +847,12 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════ 4. TAB: PROFILE (ПРОФИЛЬ) ══════════ */}
           {navTab === "profile" && (
-            <motion.div
-              key="tab-profile"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="pb-24 space-y-4"
-            >
+            <div className="pb-24 space-y-4 animate-in fade-in duration-200">
               <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center text-center`}>
                 <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
@@ -917,7 +939,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   </button>
 
                   <a
-                    href="https://t.me/sebtech_admin"
+                    href="https://t.me/mrnshkx"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`w-full py-3 rounded-2xl ${
@@ -925,22 +947,16 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                     } text-[13px] font-semibold flex items-center justify-center gap-2 transition-all`}
                   >
                     <MessageCircle size={15} className="text-[#34C759]" />
-                    <span>{lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"}</span>
+                    <span>{lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"} (@mrnshkx)</span>
                   </a>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════ 5. TAB: SETTINGS (НАСТРОЙКИ) ══════════ */}
           {navTab === "settings" && (
-            <motion.div
-              key="tab-settings"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            <div className="animate-in fade-in duration-200">
               <SettingsTab
                 user={authUser}
                 telegramUser={telegramUser}
@@ -952,9 +968,8 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                 onNameUpdate={handleNameUpdate}
                 onShowToast={(msg, typ) => setToastState({ message: msg, visible: true, type: typ })}
               />
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </main>
 
       {/* ═══════════════════════════════════════════════════

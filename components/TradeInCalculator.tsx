@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -176,14 +176,19 @@ export default function TradeInCalculator({
   /* 5 Free Attempts limit */
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [isLimitExceeded, setIsLimitExceeded] = useState(false);
+  const [resultCurrency, setResultCurrency] = useState<"USD" | "UZS">(currency);
+
+  useEffect(() => {
+    setResultCurrency(currency);
+  }, [currency]);
 
   // Load used attempts from localStorage
-  useState(() => {
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tradein_attempts_used");
       if (saved) setAttemptsUsed(Number(saved));
     }
-  });
+  }, []);
 
   /* Derived */
   const models = MODELS[selectedBrand] || [];
@@ -612,7 +617,7 @@ export default function TradeInCalculator({
 
                         <div className="w-full space-y-2.5 pt-2">
                           <a
-                            href="https://t.me/sebtech_admin"
+                            href="https://t.me/mrnshkx"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 shadow-lg shadow-[#007AFF]/25"
@@ -657,31 +662,61 @@ export default function TradeInCalculator({
                             : `Sizning ${brandName} ${modelName} (${selectedStorage}) uchun taklif qilamiz:`}
                         </p>
 
-                        <div className="liquid-glass glass-edge-highlight p-5 rounded-glass w-full mb-6 relative overflow-hidden">
+                        <div className="liquid-glass glass-edge-highlight p-5 rounded-glass w-full mb-6 relative overflow-hidden text-left">
                           {/* Subdued glow */}
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#007AFF]/10 rounded-full blur-2xl" />
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#007AFF]/10 rounded-full blur-2xl pointer-events-none" />
                           
-                          <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${d ? "text-[#007AFF]" : "text-[#007AFF]"}`}>
-                            {lang === "RU" ? "Скидка до" : "Chegirma"}
+                          <div className="flex items-center justify-between mb-2 relative z-10">
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#007AFF]">
+                              {lang === "RU" ? "Скидка до" : "Chegirma"}
+                            </p>
+
+                            {/* Instant Currency Toggle */}
+                            <div className={`p-0.5 rounded-full flex items-center border ${d ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>
+                              <button
+                                type="button"
+                                onClick={() => setResultCurrency("UZS")}
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  resultCurrency === "UZS" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-50 hover:opacity-80"
+                                }`}
+                              >
+                                СУМ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResultCurrency("USD")}
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  resultCurrency === "USD" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-50 hover:opacity-80"
+                                }`}
+                              >
+                                USD
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Primary Price */}
+                          <p className={`text-[32px] font-black tracking-tight leading-none relative z-10 ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                            {resultCurrency === "UZS"
+                              ? `${Math.round(estimatedUSD * (currencyRate || 12800)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`
+                              : `$${estimatedUSD.toLocaleString("en-US")}`}
                           </p>
-                          <motion.p
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className={`text-[34px] font-black tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}
-                          >
-                            {fmtPrice(estimatedUSD, currencyRate, currency)}
-                          </motion.p>
+
+                          {/* Secondary Equivalent */}
+                          <p className={`text-[12px] font-medium mt-2 relative z-10 ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
+                            {resultCurrency === "UZS"
+                              ? `≈ $${estimatedUSD.toLocaleString("en-US")} (по курсу ${(currencyRate || 12800).toLocaleString("ru-RU")})`
+                              : `≈ ${Math.round(estimatedUSD * (currencyRate || 12800)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`}
+                          </p>
                         </div>
 
                         <a
-                          href="https://t.me/sebtech_admin"
+                          href="https://t.me/mrnshkx"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 mb-3 shadow-lg shadow-[#007AFF]/25"
                         >
                           <MessageCircle size={18} />
-                          <span>{lang === "RU" ? "Связаться с менеджером" : "Menejer bilan bog'lanish"}</span>
+                          <span>{lang === "RU" ? "Связаться с менеджером (@mrnshkx)" : "Menejer bilan bog'lanish (@mrnshkx)"}</span>
                         </a>
                       </>
                     )}

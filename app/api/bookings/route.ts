@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendMessage } from "@/lib/telegram";
 
 export async function POST(req: Request) {
   try {
@@ -21,6 +22,12 @@ export async function POST(req: Request) {
     });
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const bookedItemsDetails: Array<{
+      title: string;
+      price: number;
+      battery?: number;
+      storage?: string;
+    }> = [];
 
     // 2. Create Bookings in transaction
     await prisma.$transaction(async (tx) => {
@@ -45,10 +52,17 @@ export async function POST(req: Request) {
               where: { id: item.id },
               data: { status: "BOOKED" },
             });
+
+            bookedItemsDetails.push({
+              title: usedExists.title,
+              price: usedExists.price,
+              battery: usedExists.batteryHealth,
+            });
           }
         } else {
           const variantExists = await tx.productVariant.findUnique({
             where: { id: String(item.id) },
+            include: { template: true },
           });
 
           await tx.booking.create({
@@ -60,9 +74,55 @@ export async function POST(req: Request) {
               status: "PENDING",
             },
           });
+
+          if (variantExists) {
+            bookedItemsDetails.push({
+              title: `${variantExists.template.title} (${variantExists.storage})`,
+              price: variantExists.price,
+              storage: variantExists.storage,
+            });
+          }
         }
       }
     });
+
+    // 3. Send instant Telegram notification to store admins
+    const adminChatIds = (process.env.ADMIN_CHAT_IDS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    for (const adminId of adminChatIds) {
+      for (const item of bookedItemsDetails) {
+        try {
+          await sendMessage(
+            adminId,
+            `📌 <b>НОВАЯ ЗАЯВКА НА БРОНЬ Б/У!</b>\n\n` +
+            `📱 <b>Устройство:</b> ${item.title}\n` +
+            (item.battery ? `🔋 <b>АКБ:</b> ${item.battery}%\n` : "") +
+            (item.storage ? `💾 <b>Память:</b> ${item.storage}\n` : "") +
+            `💵 <b>Цена:</b> $${item.price.toLocaleString("en-US")}\n\n` +
+            `👤 <b>Клиент:</b> ${user.name || "Клиент"}\n` +
+            `📞 <b>Телефон:</b> <code>${phone}</code>\n` +
+            `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
+            `📍 <b>Самовывоз:</b> г. Самарканд, ул. Гульабад, 1\n\n` +
+            `⚡ <i>Позвоните клиенту для подтверждения наличия!</i>`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "📞 Позвонить", url: `tel:${phone}` },
+                    { text: "💬 Написать в TG", url: `tg://user?id=${telegramId}` },
+                  ],
+                ],
+              },
+            }
+          );
+        } catch (err) {
+          console.error(`[Bookings] Failed to notify admin ${adminId}:`, err);
+        }
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

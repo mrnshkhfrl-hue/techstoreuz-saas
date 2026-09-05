@@ -376,8 +376,8 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     if (text === "📞 Qo'llab-quvvatlash" || text === '📞 Поддержка') {
       const isUz = currentLang === 'uz' || text === "📞 Qo'llab-quvvatlash";
       const supportMsg = isUz
-        ? `📞 <b>Bizning mutaxassislarimiz bilan bog'lanish:</b>\n\n📞 Qo'ng'iroq: <b>+998 77 285-99-99</b>\n✈️ Telegram: @sebtech_admin\n\nHar qanday savol bo'yicha yordam berishdan mamnunmiz!`
-        : `📞 <b>Связаться с нашими специалистами:</b>\n\n📞 Телефон: <b>+998 77 285-99-99</b>\n✈️ Telegram: @sebtech_admin\n\nМы всегда рады проконсультировать и помочь с выбором!`;
+        ? `📞 <b>Bizning mutaxassislarimiz bilan bog'lanish:</b>\n\n📞 Qo'ng'iroq: <b>+998 77 285-99-99</b>\n✈️ Telegram: @mrnshkx\n\nHar qanday savol bo'yicha yordam berishdan mamnunmiz!`
+        : `📞 <b>Связаться с нашими специалистами:</b>\n\n📞 Телефон: <b>+998 77 285-99-99</b>\n✈️ Telegram: @mrnshkx\n\nМы всегда рады проконсультировать и помочь с выбором!`;
 
       await sendTg({ text: supportMsg });
       return NextResponse.json({ ok: true });

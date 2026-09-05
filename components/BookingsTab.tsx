@@ -11,8 +11,10 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
+  MessageCircle,
 } from "lucide-react";
 import { DbUser } from "@/hooks/useTelegramAuth";
+import { getModelPhoto, extractStorage } from "@/lib/product-images";
 
 interface BookingsTabProps {
   user: DbUser | null;
@@ -44,7 +46,7 @@ export default function BookingsTab({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "CONFIRMED":
+      case "COMPLETED":
         return (
           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#34C759]/15 text-[#34C759] border border-[#34C759]/25 flex items-center gap-1">
             <CheckCircle2 size={12} />
@@ -63,14 +65,14 @@ export default function BookingsTab({
         return (
           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500] border border-[#FF9500]/25 flex items-center gap-1">
             <Clock size={12} />
-            {lang === "RU" ? "Ожидает в филиале" : "Filialda kutmoqda"}
+            {lang === "RU" ? "На рассмотрении" : "Ko'rib chiqilmoqda"}
           </span>
         );
     }
   };
 
   return (
-    <div className="space-y-4 pb-24 animate-in fade-in duration-300">
+    <div className="space-y-4 pb-24 animate-in fade-in duration-200">
       {/* Title */}
       <div className="px-1">
         <h2 className={`text-[20px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
@@ -128,6 +130,10 @@ export default function BookingsTab({
               0;
             const battery = booking.usedProduct?.batteryHealth;
             const region = booking.usedProduct?.region;
+            const storage = booking.variant?.storage || extractStorage(title);
+            const photoUrl = getModelPhoto(title);
+            const isPending = booking.status === "PENDING";
+            const isCompleted = booking.status === "COMPLETED";
 
             return (
               <motion.div
@@ -144,24 +150,43 @@ export default function BookingsTab({
                   backdrop-blur-xl
                 `}
               >
-                {/* Header Row */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className={`text-[15px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {title}
-                    </h3>
+                {/* Header Row with Photo and Title */}
+                <div className="flex items-start gap-3">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${d ? "bg-white/5 border border-white/5" : "bg-black/5 border border-black/5"}`}>
+                    <img
+                      src={photoUrl}
+                      alt={title}
+                      className="w-full h-full object-contain p-1"
+                      onError={(e) => {
+                        e.currentTarget.src = "/products/iphone15pro_1.webp";
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <h3 className={`text-[15px] font-bold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                        {title}
+                      </h3>
+                      {getStatusBadge(booking.status)}
+                    </div>
                     <p className={`text-[11px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"} mt-0.5`}>
                       {lang === "RU" ? "Бронь от" : "Band qilingan sana"}{" "}
                       {new Date(booking.createdAt).toLocaleDateString(
                         lang === "RU" ? "ru-RU" : "uz-UZ"
                       )}
                     </p>
+                    <p className="text-[14px] font-extrabold text-[#007AFF] mt-1">
+                      {formatPrice(price)}
+                    </p>
                   </div>
-                  {getStatusBadge(booking.status)}
                 </div>
 
                 {/* Characteristics Badges */}
                 <div className="flex flex-wrap gap-1.5">
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${d ? "bg-white/5 text-white/80" : "bg-black/5 text-[#1C1C1E]/80"}`}>
+                    💾 {storage}
+                  </span>
                   {battery && (
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${d ? "bg-white/5 text-white/80" : "bg-black/5 text-[#1C1C1E]/80"}`}>
                       🔋 {battery}% АКБ
@@ -172,8 +197,27 @@ export default function BookingsTab({
                       🌍 {region}
                     </span>
                   )}
-                  <span className="text-[11px] font-bold text-[#007AFF] px-2 py-0.5 rounded-lg bg-[#007AFF]/10">
-                    {formatPrice(price)}
+                </div>
+
+                {/* Status Notice Banner */}
+                <div className={`p-2.5 rounded-xl border text-[12px] flex items-start gap-2 ${
+                  isPending
+                    ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                    : isCompleted
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                    : d ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-[#1C1C1E]/60"
+                }`}>
+                  <ShieldCheck size={14} className="shrink-0 mt-0.5" />
+                  <span className="leading-snug">
+                    {isPending
+                      ? (lang === "RU"
+                          ? "Заявка отправлена администратору. Менеджер свяжется с вами по телефону для подтверждения!"
+                          : "So'rov adminga yuborildi. Menejer tasdiqlash uchun telefon orqali bog'lanadi!")
+                      : isCompleted
+                      ? (lang === "RU"
+                          ? "Бронь подтверждена! Устройство ждет вас в филиале в течение 24 часов."
+                          : "Bandlov tasdiqlandi! Qurilma filialda 24 soat davomida sizni kutadi.")
+                      : (lang === "RU" ? "Бронирование завершено или отменено." : "Bandlov yakunlandi yoki bekor qilindi.")}
                   </span>
                 </div>
 
@@ -187,8 +231,8 @@ export default function BookingsTab({
                     <MapPin size={13} className="text-[#FF2D55] shrink-0" />
                     <span className="font-medium">
                       {lang === "RU"
-                        ? "Филиал: г. Самарканд, ул. Гульабад, 1"
-                        : "Filial: Samarqand sh., Gulobod ko'chasi, 1"}
+                        ? "г. Самарканд, ул. Гульабад, 1"
+                        : "Samarqand sh., Gulobod ko'chasi, 1"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between pt-1">
@@ -199,20 +243,16 @@ export default function BookingsTab({
                       </span>
                     </div>
                     <a
-                      href="tel:+998772859999"
-                      className="text-[#007AFF] font-bold text-[11px] hover:underline"
+                      href="https://t.me/mrnshkx"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#007AFF] font-bold text-[11px] flex items-center gap-1 hover:underline"
                     >
-                      {lang === "RU" ? "Позвонить" : "Qo'ng'iroq"}
+                      <MessageCircle size={12} />
+                      <span>{lang === "RU" ? "Спросить менеджера" : "Menejerdan so'rash"}</span>
                     </a>
                   </div>
                 </div>
-
-                {/* Action / Help Notice */}
-                <p className={`text-[11px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"} text-center`}>
-                  {lang === "RU"
-                    ? "Устройство забронировано на 24 часа. Оплата при получении."
-                    : "Qurilma 24 soatga band qilingan. To'lov qabul qilinganda."}
-                </p>
               </motion.div>
             );
           })}

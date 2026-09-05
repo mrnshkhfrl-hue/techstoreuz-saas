@@ -456,15 +456,15 @@ export default function CartPanel({
 
                   <div className="space-y-1">
                     <h3 className={`text-[18px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {lang === "RU" ? "Успешно забронировано!" : "Muvaffaqiyatli band qilindi!"}
+                      {lang === "RU" ? "Заявка на бронь принята!" : "Band qilish arizasi qabul qilindi!"}
                     </h3>
                     <p className={`text-[13px] font-medium leading-relaxed max-w-[280px] ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
                       {lang === "RU"
-                        ? "Товары успешно забронированы на 24 часа"
-                        : "Mahsulotlar 24 soatga band qilindi"}
+                        ? "Менеджер скоро свяжется с вами для подтверждения бронирования и пригласит в наш филиал."
+                        : "Menejer tez orada bandlovni tasdiqlash va filialimizga taklif qilish uchun siz bilan bog'lanadi."}
                     </p>
-                    <p className={`text-[11px] pt-1 ${d ? "text-white/35" : "text-[#1C1C1E]/35"}`}>
-                      {lang === "RU" ? `Менеджер свяжется с вами по номеру ${phone}` : `Menejer сиз bilan ${phone} raqami orqali bog'lanadi`}
+                    <p className={`text-[11px] pt-1 font-mono ${d ? "text-[#34C759]" : "text-[#34C759]"}`}>
+                      📞 {phone}
                     </p>
                   </div>
 
