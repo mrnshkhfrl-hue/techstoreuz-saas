@@ -18,55 +18,38 @@ export type HapticImpactStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
 export type HapticNotificationType = 'error' | 'success' | 'warning';
 
 export interface TelegramHaptic {
-  /** Trigger impact haptic feedback */
   impactOccurred: (style: HapticImpactStyle) => void;
-  /** Trigger notification haptic feedback */
   notificationOccurred: (type: HapticNotificationType) => void;
-  /** Trigger selection change haptic feedback */
   selectionChanged: () => void;
 }
 
 export interface UseTelegramReturn {
-  /** Current Telegram user data (mock on localhost) */
   user: TelegramWebAppUser | null;
-  /** Whether WebApp is running inside Telegram */
   isTelegram: boolean;
-  /** Whether the SDK has been initialized */
   isReady: boolean;
-  /** Raw Telegram WebApp object (null outside Telegram) */
   webApp: any | null;
-  /** Haptic feedback methods (no-op outside Telegram) */
   haptic: TelegramHaptic;
-  /** Expand the WebApp to full screen */
   expand: () => void;
-  /** Signal that the UI is ready */
   ready: () => void;
-  /** Close the WebApp */
   close: () => void;
-  /** Show the native back button */
   showBackButton: () => void;
-  /** Hide the native back button */
   hideBackButton: () => void;
-  /** Set a callback for the native back button */
   onBackButtonClicked: (cb: () => void) => void;
-  /** Raw initData string for backend validation */
   initData: string;
-  /** Color scheme from Telegram ('light' | 'dark') */
   colorScheme: 'light' | 'dark';
 }
 
 // ─── Mock data for local development ────────────────────────────────────────
 
 const MOCK_USER: TelegramWebAppUser = {
-  telegramId: 123456789,
-  firstName: 'Dev',
-  username: 'dev_user',
-  lastName: 'Mode',
-  languageCode: 'en',
+  telegramId: 8603067434,
+  firstName: 'Admin',
+  username: 'admin',
+  lastName: 'User',
+  languageCode: 'ru',
   photoUrl: undefined,
+  isPremium: true,
 };
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function isLocalhost(): boolean {
   if (typeof window === 'undefined') return false;
@@ -85,81 +68,171 @@ const noopHaptic: TelegramHaptic = {
   selectionChanged: () => {},
 };
 
+// ─── User Extraction Helpers ────────────────────────────────────────────────
+
+function parseUserFromJson(str: string): TelegramWebAppUser | null {
+  try {
+    const raw = JSON.parse(decodeURIComponent(str));
+    if (raw && (raw.id || raw.telegramId)) {
+      return {
+        telegramId: Number(raw.id || raw.telegramId),
+        firstName: raw.first_name || raw.firstName || '',
+        username: raw.username || '',
+        lastName: raw.last_name || raw.lastName || '',
+        languageCode: raw.language_code || raw.languageCode || 'ru',
+        photoUrl: raw.photo_url || raw.photoUrl || undefined,
+        isPremium: Boolean(raw.is_premium || raw.isPremium),
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function parseUserFromQueryString(queryStr: string): TelegramWebAppUser | null {
+  try {
+    const cleanStr = queryStr.replace(/^[#?]/, '');
+    const params = new URLSearchParams(cleanStr);
+    const userParam = params.get('user');
+    if (userParam) {
+      return parseUserFromJson(userParam);
+    }
+    // Also check if entire param is tgWebAppData which itself contains user=...
+    const tgWebAppData = params.get('tgWebAppData');
+    if (tgWebAppData) {
+      const nestedParams = new URLSearchParams(tgWebAppData);
+      const nestedUser = nestedParams.get('user');
+      if (nestedUser) {
+        return parseUserFromJson(nestedUser);
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export function extractTelegramUser(): TelegramWebAppUser | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    // 1. Direct WebApp object initDataUnsafe.user
+    const webApp = (window as any).Telegram?.WebApp;
+    const directUser = webApp?.initDataUnsafe?.user;
+    if (directUser && (directUser.id || directUser.telegramId)) {
+      const u: TelegramWebAppUser = {
+        telegramId: Number(directUser.id || directUser.telegramId),
+        firstName: directUser.first_name || directUser.firstName || '',
+        username: directUser.username || '',
+        lastName: directUser.last_name || directUser.lastName || '',
+        languageCode: directUser.language_code || directUser.languageCode || 'ru',
+        photoUrl: directUser.photo_url || directUser.photoUrl || undefined,
+        isPremium: Boolean(directUser.is_premium || directUser.isPremium),
+      };
+      sessionStorage.setItem('tg_shop_user', JSON.stringify(u));
+      return u;
+    }
+
+    // 2. From webApp.initData string
+    if (webApp?.initData) {
+      const u = parseUserFromQueryString(webApp.initData);
+      if (u) {
+        sessionStorage.setItem('tg_shop_user', JSON.stringify(u));
+        return u;
+      }
+    }
+
+    // 3. From window.location.hash (#tgWebAppData=...)
+    if (window.location.hash) {
+      const u = parseUserFromQueryString(window.location.hash);
+      if (u) {
+        sessionStorage.setItem('tg_shop_user', JSON.stringify(u));
+        return u;
+      }
+    }
+
+    // 4. From window.location.search (?tgWebAppData=... or ?user=...)
+    if (window.location.search) {
+      const u = parseUserFromQueryString(window.location.search);
+      if (u) {
+        sessionStorage.setItem('tg_shop_user', JSON.stringify(u));
+        return u;
+      }
+    }
+
+    // 5. From sessionStorage cache
+    const cached = sessionStorage.getItem('tg_shop_user');
+    if (cached) {
+      const u = JSON.parse(cached);
+      if (u && u.telegramId) {
+        return u;
+      }
+    }
+  } catch (err) {
+    console.error('[extractTelegramUser] Error:', err);
+  }
+
+  // 6. Localhost fallback
+  if (isLocalhost()) {
+    return MOCK_USER;
+  }
+
+  return null;
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useTelegram(): UseTelegramReturn {
   const [webApp, setWebApp] = useState<any | null>(null);
+  const [user, setUser] = useState<TelegramWebAppUser | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  // Initialize SDK on mount (client-only)
   useEffect(() => {
-    let cancelled = false;
-
-    async function init() {
-      try {
-        if (typeof window !== 'undefined') {
-          const directTg = (window as any).Telegram?.WebApp;
-          if (directTg) {
-            directTg.ready();
-            directTg.expand();
-            if (!cancelled) setWebApp(directTg);
-          }
-        }
-
-        const WebAppModule = await import('@twa-dev/sdk');
-        const tg = WebAppModule.default;
-
-        if (cancelled) return;
-
-        if (tg) {
-          try {
-            tg.ready();
-            tg.expand();
-          } catch {}
-          setWebApp(tg);
-        }
-      } catch (err) {
-        console.warn('[useTelegram] SDK load fallback:', err);
-      } finally {
-        if (!cancelled) {
-          setIsReady(true);
-        }
-      }
+    // Initial sync check
+    const initialUser = extractTelegramUser();
+    if (initialUser) {
+      setUser(initialUser);
     }
 
-    init();
+    const directTg = (window as any).Telegram?.WebApp;
+    if (directTg) {
+      setWebApp(directTg);
+      try {
+        directTg.ready();
+        directTg.expand();
+      } catch {}
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    // Polling loop for up to 3 seconds to catch async script initialization
+    let attempts = 0;
+    const maxAttempts = 30; // 30 x 100ms = 3.0s
+    const timer = setInterval(() => {
+      attempts++;
+      const currentTg = (window as any).Telegram?.WebApp;
+      if (currentTg && !webApp) {
+        setWebApp(currentTg);
+        try {
+          currentTg.ready();
+          currentTg.expand();
+        } catch {}
+      }
+
+      const foundUser = extractTelegramUser();
+      if (foundUser) {
+        setUser(foundUser);
+        setIsReady(true);
+        clearInterval(timer);
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        setIsReady(true);
+        clearInterval(timer);
+      }
+    }, 100);
+
+    return () => clearInterval(timer);
   }, []);
 
-  // ── Derived state ──
-
   const rawTg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp || webApp : webApp;
-  const tgUser = rawTg?.initDataUnsafe?.user;
-
-  const isTelegram = Boolean(rawTg && (rawTg.initData || tgUser));
-
-  const user: TelegramWebAppUser | null = useMemo(() => {
-    if (tgUser && tgUser.id) {
-      return {
-        telegramId: Number(tgUser.id),
-        firstName: tgUser.first_name || '',
-        username: tgUser.username || '',
-        lastName: tgUser.last_name || '',
-        languageCode: tgUser.language_code || 'ru',
-        photoUrl: tgUser.photo_url || undefined,
-        isPremium: Boolean(tgUser.is_premium),
-      };
-    }
-    // Fallback: return mock user on localhost, null otherwise
-    if (isLocalhost()) {
-      return MOCK_USER;
-    }
-    return null;
-  }, [tgUser]);
-
+  const isTelegram = Boolean(rawTg && (rawTg.initData || user));
   const initData = rawTg?.initData || '';
 
   const colorScheme: 'light' | 'dark' = useMemo(() => {
@@ -171,8 +244,6 @@ export function useTelegram(): UseTelegramReturn {
     }
     return 'dark';
   }, [rawTg]);
-
-  // ── Haptic feedback ──
 
   const haptic: TelegramHaptic = useMemo(() => {
     if (rawTg?.HapticFeedback) {

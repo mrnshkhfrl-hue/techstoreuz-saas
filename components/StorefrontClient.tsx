@@ -735,8 +735,10 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       </span>
                     )}
                   </h2>
-                  <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} mt-0.5 mb-2 font-mono`}>
-                    {telegramUser?.username ? `@${telegramUser.username}` : `ID: ${authUser?.telegramId || telegramUser?.telegramId || "—"}`}
+                  <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} mt-0.5 mb-2 font-mono flex items-center justify-center gap-2 flex-wrap`}>
+                    {telegramUser?.username && <span>@{telegramUser.username}</span>}
+                    {telegramUser?.username && (authUser?.telegramId || telegramUser?.telegramId) && <span>•</span>}
+                    <span>ID: {authUser?.telegramId || telegramUser?.telegramId || "—"}</span>
                   </p>
 
                   {/* Phone Badge */}

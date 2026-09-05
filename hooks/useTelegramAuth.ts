@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTelegram, TelegramWebAppUser } from '@/hooks/useTelegram';
+import { useTelegram, extractTelegramUser, TelegramWebAppUser } from '@/hooks/useTelegram';
 
 export interface DbUser {
   id: string;
@@ -34,7 +34,9 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [needsPhone, setNeedsPhone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasCheckedRef = useRef(false);
+  const checkedIdRef = useRef<string | null>(null);
+
+  const activeTgUser = tg.user || extractTelegramUser();
 
   const checkUserExists = useCallback(async (tgUser: TelegramWebAppUser) => {
     try {
@@ -66,7 +68,6 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
     } catch (err: any) {
       console.error('[useTelegramAuth] Check error:', err);
       setError(err?.message || 'Authentication error');
-      // On network error or DB missing, trigger onboarding for safety
       setNeedsPhone(true);
     } finally {
       setIsLoading(false);
@@ -75,7 +76,8 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
 
   const registerWithPhone = useCallback(
     async (phone: string) => {
-      if (!tg.user) {
+      const userToRegister = activeTgUser;
+      if (!userToRegister) {
         return { success: false, error: 'Telegram user not detected' };
       }
 
@@ -84,11 +86,11 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            telegramId: tg.user.telegramId,
-            firstName: tg.user.firstName,
-            lastName: tg.user.lastName,
-            username: tg.user.username,
-            photoUrl: tg.user.photoUrl,
+            telegramId: userToRegister.telegramId,
+            firstName: userToRegister.firstName,
+            lastName: userToRegister.lastName,
+            username: userToRegister.username,
+            photoUrl: userToRegister.photoUrl,
             phone: phone.trim(),
           }),
         });
@@ -100,7 +102,11 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
 
         const data = await res.json();
         if (data?.user) {
-          setDbUser(data.user);
+          setDbUser({
+            ...data.user,
+            photoUrl: userToRegister.photoUrl || data.user.photoUrl,
+            username: userToRegister.username || data.user.username,
+          });
           setNeedsPhone(false);
           return { success: true };
         }
@@ -110,31 +116,30 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
         return { success: false, error: err.message || 'Registration error' };
       }
     },
-    [tg.user]
+    [activeTgUser]
   );
 
   useEffect(() => {
-    if (tg.isReady) {
-      if (tg.user) {
-        if (!hasCheckedRef.current) {
-          hasCheckedRef.current = true;
-          checkUserExists(tg.user);
-        }
-      } else {
-        setIsLoading(false);
+    if (activeTgUser) {
+      const idStr = String(activeTgUser.telegramId);
+      if (checkedIdRef.current !== idStr) {
+        checkedIdRef.current = idStr;
+        checkUserExists(activeTgUser);
       }
+    } else if (tg.isReady) {
+      setIsLoading(false);
     }
-  }, [tg.isReady, tg.user, checkUserExists]);
+  }, [activeTgUser, tg.isReady, checkUserExists]);
 
   const refetch = useCallback(async () => {
-    if (tg.user) {
-      await checkUserExists(tg.user);
+    if (activeTgUser) {
+      await checkUserExists(activeTgUser);
     }
-  }, [tg.user, checkUserExists]);
+  }, [activeTgUser, checkUserExists]);
 
   return {
     user: dbUser,
-    telegramUser: tg.user,
+    telegramUser: activeTgUser,
     isLoading,
     needsPhone,
     error,

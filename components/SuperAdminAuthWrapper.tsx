@@ -1,57 +1,72 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTelegram } from "@/hooks/useTelegram";
+import { useTelegram, extractTelegramUser } from "@/hooks/useTelegram";
 
 export default function SuperAdminAuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, isReady } = useTelegram();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [detectedId, setDetectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait until Telegram SDK is ready
-    if (!isReady) return;
-
-    try {
-      const superAdminRaw = 
-        process.env.NEXT_PUBLIC_SUPERADMIN_IDS || 
-        process.env.NEXT_PUBLIC_ADMIN_IDS || 
-        process.env.SUPERADMIN_IDS || 
-        process.env.ADMIN_CHAT_IDS || 
-        "7949519588,8603067434";
-
-      const superAdminIds = superAdminRaw
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      // 1. Try from useTelegram hook
-      const userId = user?.telegramId || (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
-
-      if (userId && superAdminIds.includes(String(userId))) {
-        setIsAuthorized(true);
-        return;
-      }
-
-      // If localhost / dev mode
-      if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-        setIsAuthorized(true);
-        return;
-      }
-
-      if (userId) {
-        // User ID is known but not in superadmin list
-        setIsAuthorized(false);
-      } else {
-        // If outside Telegram or no user data attached
-        setIsAuthorized(false);
-      }
-    } catch (e) {
-      console.error("SuperAdmin Auth error:", e);
-      setIsAuthorized(false);
+    // Localhost bypass for dev
+    if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+      setIsAuthorized(true);
+      return;
     }
+
+    const superAdminRaw = [
+      process.env.NEXT_PUBLIC_SUPERADMIN_IDS,
+      process.env.NEXT_PUBLIC_ADMIN_IDS,
+      process.env.SUPERADMIN_IDS,
+      process.env.ADMIN_CHAT_IDS,
+      "7949519588,8603067434"
+    ].filter(Boolean).join(",");
+
+    const superAdminIds = superAdminRaw
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const checkAuth = () => {
+      const extracted = user || extractTelegramUser();
+      const currentId = extracted?.telegramId
+        ? String(extracted.telegramId)
+        : (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id
+        ? String((window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id)
+        : null;
+
+      if (currentId) {
+        setDetectedId(currentId);
+        if (superAdminIds.includes(currentId)) {
+          setIsAuthorized(true);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Immediate check
+    if (checkAuth()) return;
+
+    // Retry checking for up to 2.5 seconds (25 attempts x 100ms)
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkAuth()) {
+        clearInterval(interval);
+        return;
+      }
+      if (attempts >= 25) {
+        clearInterval(interval);
+        setIsAuthorized(false);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
   }, [user, isReady]);
 
-  if (!isReady || isAuthorized === null) {
+  if (isAuthorized === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white p-4">
         <div className="p-6 rounded-[24px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] flex items-center gap-3">
@@ -63,7 +78,7 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
   }
 
   if (isAuthorized === false) {
-    const currentId = user?.telegramId || (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id || "Не определен";
+    const finalId = detectedId || user?.telegramId || extractTelegramUser()?.telegramId || "Не определен";
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white p-4 text-center">
         <div className="p-8 max-w-sm w-full rounded-[28px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] space-y-4">
@@ -75,7 +90,7 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
             Эта страница доступна только создателю платформы (Супер-админу).
           </p>
           <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px] text-white/40 font-mono">
-            Ваш ID: {currentId}
+            Ваш ID: {finalId}
           </div>
         </div>
       </div>

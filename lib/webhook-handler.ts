@@ -2,10 +2,30 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // In-memory cache for user registration states and languages
+interface UserRegState {
+  step: 'LANG' | 'NAME' | 'PHONE';
+  lang: 'ru' | 'uz';
+  name?: string;
+}
+
+const userStateCache = new Map<string, UserRegState>();
 const userLangCache = new Map<string, string>();
 const userRegisteredCache = new Set<string>();
 
-// Fast DB user check with hard timeout so Telegram is never blocked
+function normalizePhone(rawPhone: string): string {
+  let cleaned = String(rawPhone).trim();
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length === 9) {
+    return `+998${digits}`;
+  } else if (digits.length === 12 && digits.startsWith('998')) {
+    return `+${digits}`;
+  } else if (digits.length > 0) {
+    return cleaned.startsWith('+') ? cleaned : `+${digits}`;
+  }
+  return cleaned;
+}
+
+// Fast DB user check: checks if user exists AND has a verified phone
 async function checkUserRegistrationFast(tgId: string): Promise<boolean> {
   if (userRegisteredCache.has(tgId)) return true;
 
@@ -15,15 +35,15 @@ async function checkUserRegistrationFast(tgId: string): Promise<boolean> {
         where: { telegramId: tgId },
         select: { phone: true },
       }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 350)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
     ]);
 
-    if (dbUser?.phone) {
+    if (dbUser?.phone && dbUser.phone.length > 5) {
       userRegisteredCache.add(tgId);
       return true;
     }
   } catch (err) {
-    // Database connection delayed or cold, continue without blocking
+    console.error('[Webhook] DB user check error:', err);
   }
 
   return false;
@@ -91,7 +111,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       parse_mode?: string;
     }) => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       try {
         await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
@@ -156,43 +176,51 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
     // Detect language preference (cached or Telegram app language)
     const userLanguageCode = from?.language_code?.toLowerCase() || '';
-    const fallbackLang = userLanguageCode.startsWith('ru') ? 'ru' : 'uz';
-    const currentLang = userLangCache.get(tgId) || fallbackLang;
+    const fallbackLang: 'ru' | 'uz' = userLanguageCode.startsWith('ru') ? 'ru' : 'uz';
+    const currentLang = (userLangCache.get(tgId) || fallbackLang) as 'ru' | 'uz';
 
-    // ── STEP A: Contact Shared (Phone number captured) ───────────────────
+    // ── STEP A: Contact Shared (Phone Number Captured) ───────────────────
     if (contact && contact.phone_number) {
-      const phone = contact.phone_number;
+      const phone = normalizePhone(contact.phone_number);
       userRegisteredCache.add(tgId);
 
-      // Non-blocking async DB write
-      prisma.user
-        .upsert({
+      const state = userStateCache.get(tgId);
+      const fallbackName = `${from?.first_name || ''} ${from?.last_name || ''}`.trim() || from?.username || 'User';
+      const finalName = state?.name || fallbackName;
+      const lang = state?.lang || currentLang;
+
+      userStateCache.delete(tgId);
+
+      // Save user in DB
+      try {
+        await prisma.user.upsert({
           where: { telegramId: tgId },
-          update: { phone },
+          update: { phone, name: finalName },
           create: {
             telegramId: tgId,
             phone,
-            name: `${from?.first_name || ''} ${from?.last_name || ''}`.trim() || 'User',
+            name: finalName,
           },
-        })
-        .catch((e) => console.error('[User Phone Save Error]', e));
+        });
+      } catch (e) {
+        console.error('[User Phone Save Error]', e);
+      }
 
       const successText =
-        currentLang === 'uz'
-          ? '✅ Telefon raqamingiz muvaffaqiyatli saqlandi!'
-          : '✅ Ваш номер телефона успешно сохранён!';
+        lang === 'uz'
+          ? "✅ Telefon raqamingiz muvaffaqiyatli saqlandi! Ro'yxatdan o'tish yakunlandi."
+          : '✅ Ваш номер телефона успешно сохранён! Регистрация завершена.';
 
       await sendTg({ text: successText });
-      await sendMainMenu(currentLang);
+      await sendMainMenu(lang);
       return NextResponse.json({ ok: true });
     }
 
     // ── STEP B: Language Selection ────────────────────────────────────────
     if (text === "🇺🇿 O'zbekcha" || text === '🇷🇺 Русский') {
-      const newLang = text.includes("O'zbekcha") ? 'uz' : 'ru';
+      const newLang: 'ru' | 'uz' = text.includes("O'zbekcha") ? 'uz' : 'ru';
       userLangCache.set(tgId, newLang);
 
-      // Fast registration check
       const isRegistered = await checkUserRegistrationFast(tgId);
 
       if (isRegistered) {
@@ -202,7 +230,9 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
         return NextResponse.json({ ok: true });
       }
 
-      // Ask for Name & Surname
+      // User not registered yet -> ask for Name and Surname
+      userStateCache.set(tgId, { step: 'NAME', lang: newLang });
+
       const askName =
         newLang === 'uz'
           ? '📝 Iltimos, ism va familiyangizni kiriting:'
@@ -215,18 +245,15 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       return NextResponse.json({ ok: true });
     }
 
-    // ── STEP C: Fast registration check ──────────────────────────────────
-    // Owners always bypass registration directly to menu
-    if (isOwner) {
-      userRegisteredCache.add(tgId);
-    }
-
-    const isUserRegistered = isOwner || (await checkUserRegistrationFast(tgId));
+    // ── STEP C: Registration Check ───────────────────────────────────────
+    const isUserRegistered = await checkUserRegistrationFast(tgId);
 
     // If NOT registered yet:
     if (!isUserRegistered) {
-      // 1. /start command -> Show Language Selection immediately
+      // 1. /start command -> Show Language Selection
       if (text.startsWith('/start')) {
+        userStateCache.set(tgId, { step: 'LANG', lang: fallbackLang });
+
         const welcomeText = `👋 Xush kelibsiz <b>${storeName}</b> do'koniga!\n\nДобро пожаловать в <b>${storeName}</b>!\n\nIltimos, tilni tanlang / Пожалуйста, выберите язык:`;
         await sendTg({
           text: welcomeText,
@@ -239,22 +266,30 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
         return NextResponse.json({ ok: true });
       }
 
-      // 2. User typed their Name -> Save Name in background and ask for Phone
+      const userState = userStateCache.get(tgId);
+
+      // 2. User typed their Name (either in NAME step or as free text)
       if (text && !text.startsWith('/')) {
+        const enteredName = text.trim();
+        const activeLang = userState?.lang || currentLang;
+
+        userStateCache.set(tgId, { step: 'PHONE', lang: activeLang, name: enteredName });
+
+        // Save name to DB in background
         prisma.user
           .upsert({
             where: { telegramId: tgId },
-            update: { name: text },
-            create: { telegramId: tgId, name: text },
+            update: { name: enteredName },
+            create: { telegramId: tgId, name: enteredName },
           })
-          .catch((e) => console.error(e));
+          .catch((e) => console.error('[Save Name Error]', e));
 
         const promptPhone =
-          currentLang === 'uz'
-            ? "📱 Iltimos, ro'yxatdan o'tishni yakunlash uchun telefon raqamingizni yuboring:"
-            : '📱 Пожалуйста, отправьте свой номер телефона для завершения регистрации:';
+          activeLang === 'uz'
+            ? "📱 Iltimos, ro'yxatdan o'tishni yakunlash uchun pastdagi tugmani bosing va telefon raqamingizni yuboring:"
+            : '📱 Пожалуйста, нажмите кнопку ниже, чтобы отправить номер телефона для завершения регистрации:';
 
-        const btnText = currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер';
+        const btnText = activeLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер';
 
         await sendTg({
           text: promptPhone,
@@ -267,11 +302,12 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
         return NextResponse.json({ ok: true });
       }
 
-      // Fallback prompt for contact
+      // 3. Fallback prompt to request contact
+      const activeLang = userState?.lang || currentLang;
       const promptPhone =
-        currentLang === 'uz'
-          ? "📱 Iltimos, pastdagi tugmani bosib raqamingizni yuboring:"
-          : '📱 Пожалуйста, нажмите кнопку ниже, чтобы отправить номер:';
+        activeLang === 'uz'
+          ? "📱 Iltimos, pastdagi tugmani bosib telefon raqamingizni yuboring:"
+          : '📱 Пожалуйста, нажмите кнопку ниже, чтобы отправить номер телефона:';
 
       await sendTg({
         text: promptPhone,
@@ -279,7 +315,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
           keyboard: [
             [
               {
-                text: currentLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер',
+                text: activeLang === 'uz' ? '📞 Raqamni yuborish' : '📞 Отправить номер',
                 request_contact: true,
               },
             ],
