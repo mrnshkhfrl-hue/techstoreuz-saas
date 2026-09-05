@@ -43,6 +43,8 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
       setIsLoading(true);
       setError(null);
 
+      const cachedPhone = typeof window !== 'undefined' ? localStorage.getItem(`tg_phone_${tgUser.telegramId}`) : null;
+
       const res = await fetch(`/api/auth/sync?telegramId=${encodeURIComponent(tgUser.telegramId)}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -53,13 +55,44 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
       }
 
       const data = await res.json();
-      if (data.exists && data.user) {
+      if (data.exists && data.user && data.user.phone) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`tg_phone_${tgUser.telegramId}`, data.user.phone);
+        }
         setDbUser({
           ...data.user,
           photoUrl: tgUser.photoUrl || data.user.photoUrl,
           username: tgUser.username || data.user.username,
         });
         setNeedsPhone(false);
+      } else if (cachedPhone) {
+        // User has verified phone on this device before -> auto-sync with server!
+        try {
+          const syncRes = await fetch('/api/auth/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              telegramId: tgUser.telegramId,
+              firstName: tgUser.firstName,
+              lastName: tgUser.lastName,
+              username: tgUser.username,
+              photoUrl: tgUser.photoUrl,
+              phone: cachedPhone,
+            }),
+          });
+          const syncData = await syncRes.json();
+          if (syncData?.user) {
+            setDbUser({
+              ...syncData.user,
+              photoUrl: tgUser.photoUrl || syncData.user.photoUrl,
+              username: tgUser.username || syncData.user.username,
+            });
+            setNeedsPhone(false);
+            return;
+          }
+        } catch {}
+        setDbUser(null);
+        setNeedsPhone(true);
       } else {
         // User not in DB or has no phone -> trigger Onboarding
         setDbUser(null);
@@ -68,7 +101,10 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
     } catch (err: any) {
       console.error('[useTelegramAuth] Check error:', err);
       setError(err?.message || 'Authentication error');
-      setNeedsPhone(true);
+      const cachedPhone = typeof window !== 'undefined' ? localStorage.getItem(`tg_phone_${tgUser.telegramId}`) : null;
+      if (cachedPhone) {
+        setNeedsPhone(false);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +117,8 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
         return { success: false, error: 'Telegram user not detected' };
       }
 
+      const trimmedPhone = phone.trim();
+
       try {
         const res = await fetch('/api/auth/sync', {
           method: 'POST',
@@ -91,7 +129,7 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
             lastName: userToRegister.lastName,
             username: userToRegister.username,
             photoUrl: userToRegister.photoUrl,
-            phone: phone.trim(),
+            phone: trimmedPhone,
           }),
         });
 
@@ -102,6 +140,9 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
 
         const data = await res.json();
         if (data?.user) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`tg_phone_${userToRegister.telegramId}`, trimmedPhone);
+          }
           setDbUser({
             ...data.user,
             photoUrl: userToRegister.photoUrl || data.user.photoUrl,

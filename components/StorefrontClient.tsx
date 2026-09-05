@@ -125,6 +125,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
     visible: boolean;
     type: "success" | "error";
   }>({ message: "", visible: false, type: "success" });
+  const [dismissedOnboarding, setDismissedOnboarding] = useState(false);
 
   /* ── Filtered New Products ── */
   const filteredNewProducts = useMemo(() => {
@@ -1013,10 +1014,12 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
           ONBOARDING PHONE VERIFICATION MODAL
           ═══════════════════════════════════════════════════ */}
       <OnboardingModal
-        isOpen={needsPhone && !isAuthLoading}
+        isOpen={needsPhone && !isAuthLoading && !dismissedOnboarding}
         telegramUser={telegramUser}
         onRegister={registerWithPhone}
+        onClose={() => setDismissedOnboarding(true)}
         onSuccess={() => {
+          setDismissedOnboarding(true);
           setToastState({
             message:
               lang === "RU"

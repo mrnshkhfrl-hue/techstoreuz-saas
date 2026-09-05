@@ -3,20 +3,26 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
-  try {
-    // 1. Очищаем старые данные (каскадно удалит Shop → Products → Variants, Bookings)
-    await prisma.booking.deleteMany();
-    await prisma.usedProduct.deleteMany();
-    await prisma.productVariant.deleteMany();
-    await prisma.newProductTemplate.deleteMany();
-    await prisma.shopAdmin.deleteMany();
-    await prisma.shop.deleteMany();
-    await prisma.user.deleteMany();
+export const dynamic = 'force-dynamic';
 
-    // 2. Тестовый пользователь (Владелец)
-    const user = await prisma.user.create({
-      data: {
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const secret = searchParams.get('secret');
+
+    // CRITICAL: Prevent Next.js build prerendering from wiping the database!
+    if (secret !== 'RESET_TEST_DATABASE_2026') {
+      return NextResponse.json({
+        success: false,
+        message: 'Mock reset is disabled. Provide valid ?secret= to execute.',
+      });
+    }
+
+    // Upsert test user
+    const user = await prisma.user.upsert({
+      where: { telegramId: "123456789" },
+      update: {},
+      create: {
         telegramId: "123456789",
         name: "Test Admin",
         isPremium: true,

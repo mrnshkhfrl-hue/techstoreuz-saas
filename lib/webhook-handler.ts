@@ -30,13 +30,10 @@ async function checkUserRegistrationFast(tgId: string): Promise<boolean> {
   if (userRegisteredCache.has(tgId)) return true;
 
   try {
-    const dbUser = await Promise.race([
-      prisma.user.findUnique({
-        where: { telegramId: tgId },
-        select: { phone: true },
-      }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
-    ]);
+    const dbUser = await prisma.user.findUnique({
+      where: { telegramId: tgId },
+      select: { phone: true },
+    });
 
     if (dbUser?.phone && dbUser.phone.length > 5) {
       userRegisteredCache.add(tgId);

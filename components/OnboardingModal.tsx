@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Phone, ShieldCheck, ArrowRight, Smartphone, Sparkles, CheckCircle2 } from "lucide-react";
+import { Phone, ShieldCheck, ArrowRight, Smartphone, Sparkles, CheckCircle2, X } from "lucide-react";
 import { useTelegram } from "@/hooks/useTelegram";
 import { TelegramWebAppUser } from "@/hooks/useTelegram";
 
@@ -11,6 +11,7 @@ interface OnboardingModalProps {
   telegramUser: TelegramWebAppUser | null;
   onRegister: (phone: string) => Promise<{ success: boolean; error?: string }>;
   onSuccess: () => void;
+  onClose?: () => void;
 }
 
 export default function OnboardingModal({
@@ -18,6 +19,7 @@ export default function OnboardingModal({
   telegramUser,
   onRegister,
   onSuccess,
+  onClose,
 }: OnboardingModalProps) {
   const { haptic, isTelegram } = useTelegram();
   const [phoneDigits, setPhoneDigits] = useState("");
@@ -154,6 +156,19 @@ export default function OnboardingModal({
           {/* Top highlight line for Liquid Glass */}
           <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
 
+          {/* Close button if skippable */}
+          {onClose && (
+            <button
+              onClick={() => {
+                haptic.impactOccurred("light");
+                onClose();
+              }}
+              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/70 transition-colors cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          )}
+
           {/* Ambient light orbs behind glass */}
           <div className="absolute -top-12 -left-12 w-32 h-32 rounded-full bg-[#007AFF]/25 blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-[#7928CA]/25 blur-2xl pointer-events-none" />
@@ -238,6 +253,19 @@ export default function OnboardingModal({
                 </>
               )}
             </button>
+
+            {onClose && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic.impactOccurred("light");
+                  onClose();
+                }}
+                className="w-full mt-2 py-2 text-[13px] text-white/50 hover:text-white/80 transition-colors cursor-pointer"
+              >
+                Пропустить и смотреть каталог →
+              </button>
+            )}
           </form>
 
           {/* Privacy footer guarantee */}
