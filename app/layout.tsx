@@ -1,7 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import TelegramProvider from "@/components/TelegramProvider";
+
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-inter",
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "Store";
 
@@ -32,7 +40,7 @@ export default async function RootLayout({
 }) {
   const initialExchangeRate = await getCurrentExchangeRate();
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -41,12 +49,12 @@ export default async function RootLayout({
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
       </head>
-      <body className="font-sans antialiased bg-surface-primary text-foreground min-h-screen relative selection:bg-[#007AFF]/30 transition-colors duration-200">
+      <body className={`${inter.className} font-sans antialiased bg-surface-primary text-foreground min-h-screen relative selection:bg-[#007AFF]/30 transition-colors duration-200`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AnimatedBackground />
           <CurrencyProvider initialExchangeRate={initialExchangeRate}>
