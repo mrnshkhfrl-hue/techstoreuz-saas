@@ -12,10 +12,20 @@ import {
   User,
   ArrowLeftRight,
   Sparkles,
+  Check,
+  MessageCircle,
+  Clock,
+  ShieldCheck,
+  ShoppingBag,
+  Phone,
 } from "lucide-react";
 import ProductBottomSheet from "@/components/ProductBottomSheet";
 import TradeInCalculator from "@/components/TradeInCalculator";
 import CartPanel from "@/components/CartPanel";
+import OnboardingModal from "@/components/OnboardingModal";
+import Toast from "@/components/Toast";
+import { useTelegramAuth } from "@/hooks/useTelegramAuth";
+import { useCart } from "@/providers/CartProvider";
 
 /* ═══════════════════════════════════════════════════════
    HELPERS
@@ -95,6 +105,22 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isTradeInOpen, setIsTradeInOpen] = useState(false);
 
+  /* ── Live Hooks (Auth & Cart) ── */
+  const {
+    user: authUser,
+    telegramUser,
+    isLoading: isAuthLoading,
+    needsPhone,
+    registerWithPhone,
+  } = useTelegramAuth();
+  const { addItem, itemCount } = useCart();
+
+  const [toastState, setToastState] = useState<{
+    message: string;
+    visible: boolean;
+    type: "success" | "error";
+  }>({ message: "", visible: false, type: "success" });
+
   /* ── Derived ── */
   const d = isDark;
   const tabs = useMemo(
@@ -108,27 +134,16 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
   return (
     <div
-      className={`
-        max-w-[430px] mx-auto min-h-screen relative overflow-hidden
-        font-sans transition-colors duration-500
-        sm:border-x
-        ${d ? "border-white/[0.04]" : "border-black/[0.04]"}
-        ${d ? "bg-black text-white" : "bg-[#F2F2F7] text-[#1C1C1E]"}
-      `}
+      className="max-w-[430px] mx-auto min-h-screen relative font-sans text-white bg-transparent sm:border-x sm:border-white/10"
     >
       {/* ═══════════════════════════════════════════════════
           HEADER — Liquid Glass
           ═══════════════════════════════════════════════════ */}
       <header
-        className={`
-          sticky top-0 z-40 transition-colors duration-500
-          ${d ? "bg-black/70" : "bg-[#F2F2F7]/70"}
-          backdrop-blur-[80px] backdrop-saturate-200
-          border-b
-          ${d ? "border-white/[0.04]" : "border-black/[0.04]"}
-        `}
+        className="sticky top-0 z-40 bg-white/5 backdrop-blur-lg border-b border-white/10 shadow-xl transition-colors duration-300 relative"
       >
-        <div className="px-4 pt-12 pb-3">
+        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+        <div className="px-4 pt-10 pb-3">
           {/* Row 1: Title + controls */}
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-[22px] font-bold tracking-tight leading-none">
@@ -259,45 +274,52 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
       </header>
 
       {/* ═══════════════════════════════════════════════════
-          TRADE-IN BANNER — Liquid Glass on System Blue
+          TRADE-IN BANNER — Liquid Glass
           ═══════════════════════════════════════════════════ */}
       <div className="px-4 pt-4 pb-1">
         <motion.div
-          whileTap={{ scale: 0.97 }}
+          whileTap={{ scale: 0.98 }}
           transition={tapSpring}
-          className="w-full rounded-glass relative overflow-hidden cursor-pointer bg-[#007AFF]"
+          onClick={() => setIsTradeInOpen(true)}
+          className="w-full rounded-3xl relative overflow-hidden cursor-pointer bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl group"
         >
-          {/* Glass overlay */}
-          <div className="absolute inset-0 liquid-glass rounded-glass" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          {/* Glass Edge Reflection */}
+          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
 
-          {/* Subtle decorative orbs */}
-          <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute left-4 -bottom-10 w-28 h-28 bg-white/8 rounded-full blur-3xl" />
+          {/* Ambient inner soft glowing orbs */}
+          <div className="absolute -right-8 -top-8 w-40 h-40 bg-[#007AFF]/25 rounded-full blur-2xl pointer-events-none group-hover:scale-110 transition-transform duration-500" />
+          <div className="absolute left-6 -bottom-10 w-36 h-36 bg-[#7928CA]/20 rounded-full blur-2xl pointer-events-none" />
 
           <div className="relative z-10 p-5">
-            <div className="flex items-center gap-1.5 mb-2">
-              <ArrowLeftRight size={13} className="text-white/60" />
-              <p className="text-white/60 text-[11px] font-semibold uppercase tracking-[0.15em]">
-                Trade-in
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-[#007AFF]/20 border border-[#007AFF]/30 flex items-center justify-center text-[#5AC8FA]">
+                <ArrowLeftRight size={12} />
+              </div>
+              <p className="text-[#5AC8FA] text-[11px] font-bold uppercase tracking-[0.15em]">
+                Trade-in Express
               </p>
             </div>
-            <h2 className="text-white text-[17px] font-bold mb-1 leading-snug tracking-tight">
+            <h2 className="text-white text-[18px] font-bold mb-1 leading-snug tracking-tight">
               {lang === "RU"
                 ? "Обменяйте старое на новое"
                 : "Eskisini yangisiga almashtiring"}
             </h2>
-            <p className="text-white/65 text-[13px] mb-4 leading-relaxed max-w-[240px]">
+            <p className="text-white/60 text-[13px] mb-4 leading-relaxed max-w-[250px]">
               {lang === "RU"
-                ? "Оценим ваше устройство и предложим лучшую цену."
-                : "Qurilmangizni baholaymiz va eng yaxshi narxni taklif qilamiz."}
+                ? "Оценим ваше устройство за 2 минуты и предложим лучшую цену."
+                : "Qurilmangizni 2 daqiqada baholaymiz va eng yaxshi narxni beramiz."}
             </p>
             <motion.button
               whileTap={{ scale: 0.94 }}
               transition={tapSpring}
-              onClick={() => setIsTradeInOpen(true)}
-              className="px-5 py-2.5 bg-white text-[#007AFF] text-[13px] font-bold rounded-glass-btn shadow-lg shadow-black/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTradeInOpen(true);
+              }}
+              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white border border-white/20 text-[13px] font-bold rounded-2xl shadow-lg backdrop-blur-md flex items-center gap-2 transition-all"
             >
-              {lang === "RU" ? "Оценить устройство" : "Qurilmani baholash"}
+              <span>{lang === "RU" ? "Оценить устройство" : "Qurilmani baholash"}</span>
+              <span className="text-[#5AC8FA]">→</span>
             </motion.button>
           </div>
         </motion.div>
@@ -350,13 +372,11 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                         }}
                         whileTap={{ scale: 0.96 }}
                         onClick={() => setSelectedProduct(p)}
-                        className={`
-                          liquid-glass glass-edge-highlight
-                          rounded-glass p-3.5 flex flex-col cursor-pointer
-                          relative overflow-hidden transition-all group
-                          ${d ? "hover:bg-white/[0.06]" : "hover:bg-white/80"}
-                        `}
+                        className="bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl rounded-3xl p-4 flex flex-col cursor-pointer relative overflow-hidden transition-all group hover:bg-white/[0.08] hover:border-white/20"
                       >
+                        {/* Glass Edge highlight */}
+                        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+
                         {/* NEW badge */}
                         <div className="absolute top-3 left-3 z-10">
                           <div className="flex items-center gap-1 bg-[#007AFF] text-white text-[9px] font-bold px-2 py-[3px] rounded-glass-sm shadow-md shadow-[#007AFF]/20">
@@ -491,13 +511,14 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       whileTap={{ scale: 0.97 }}
                       onClick={() => !isBooked && !isSold && setSelectedProduct(p)}
                       className={`
-                        liquid-glass glass-edge-highlight
-                        rounded-glass p-3.5 flex gap-3.5 cursor-pointer
-                        relative overflow-hidden transition-all
-                        ${d ? "hover:bg-white/[0.06]" : "hover:bg-white/80"}
+                        bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl rounded-3xl p-4 flex gap-3.5 cursor-pointer
+                        relative overflow-hidden transition-all group hover:bg-white/[0.08] hover:border-white/20
                         ${isBooked || isSold ? "opacity-50" : ""}
                       `}
                     >
+                      {/* Glass Edge highlight */}
+                      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+
                       {/* Phone image */}
                       <div
                         className={`
@@ -579,16 +600,27 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
                         {/* Price + CTA */}
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-bold text-[15px] text-[#007AFF] leading-none">
+                          <p className="font-bold text-[15px] text-[#5AC8FA] leading-none">
                             {fmtPrice(p.price, shop.currencyRate, currency)}
                           </p>
                           {!isBooked && !isSold && (
                             <motion.button
                               whileTap={{ scale: 0.93 }}
                               transition={tapSpring}
-                              className="px-3 py-1.5 bg-[#007AFF] text-white text-[11px] font-bold rounded-glass-sm transition-colors shadow-md shadow-[#007AFF]/20"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addItem({
+                                  id: p.id,
+                                  type: "USED",
+                                  title: p.title,
+                                  variant: `Б/У · ${p.batteryHealth}% АКБ · ${p.region}`,
+                                  price: p.price,
+                                });
+                              }}
+                              className="px-3.5 py-1.5 bg-[#007AFF] hover:bg-[#0A84FF] text-white text-[11px] font-bold rounded-xl shadow-md shadow-[#007AFF]/25 transition-all flex items-center gap-1"
                             >
-                              {lang === "RU" ? "Забронировать" : "Band qilish"}
+                              <ShoppingBag size={12} />
+                              <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
                             </motion.button>
                           )}
                         </div>
@@ -622,58 +654,153 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
               exit="exit"
               transition={{ duration: 0.22, ease: "easeOut" }}
             >
-              <div
-                className={`
-                  liquid-glass glass-edge-highlight
-                  rounded-glass p-6
-                  flex flex-col items-center text-center mt-1
-                  relative overflow-hidden
-                `}
-              >
-                <div className="w-20 h-20 bg-[#007AFF] rounded-glass-lg mb-5 shadow-lg shadow-[#007AFF]/20 flex items-center justify-center">
-                  <User size={32} className="text-white" />
+              {isAuthLoading ? (
+                /* ── Skeleton while syncing silently with Supabase ── */
+                <div className="w-full rounded-3xl p-6 bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative overflow-hidden flex flex-col items-center">
+                  <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                  <div className="w-20 h-20 rounded-full bg-white/10 animate-pulse mb-4" />
+                  <div className="w-36 h-5 rounded-xl bg-white/10 animate-pulse mb-2" />
+                  <div className="w-28 h-3.5 rounded-lg bg-white/5 animate-pulse mb-6" />
+                  <div className="w-full grid grid-cols-2 gap-3 mb-5">
+                    <div className="h-16 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+                    <div className="h-16 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+                  </div>
+                  <div className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
                 </div>
-                <h2
-                  className={`text-lg font-bold tracking-tight ${
-                    d ? "text-white/90" : "text-[#1C1C1E]"
-                  }`}
-                >
-                  {lang === "RU" ? "Ваш профиль" : "Sizning profilingiz"}
-                </h2>
-                <p
-                  className={`text-[13px] mt-1.5 mb-6 max-w-[220px] leading-relaxed ${
-                    d ? "text-white/40" : "text-[#1C1C1E]/40"
-                  }`}
-                >
-                  {lang === "RU"
-                    ? "Авторизуйтесь, чтобы отслеживать бронирования и историю заказов"
-                    : "Buyurtmalar va bandlovlarni kuzatish uchun tizimga kiring"}
-                </p>
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  transition={tapSpring}
-                  className="w-full py-3 btn-system-blue text-sm rounded-glass-btn"
-                >
-                  {lang === "RU"
-                    ? "Войти через Telegram"
-                    : "Telegram orqali kirish"}
-                </motion.button>
-              </div>
+              ) : (
+                /* ── Verified Profile Card in Liquid Glass ── */
+                <div className="w-full rounded-3xl p-6 bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative overflow-hidden flex flex-col items-center">
+                  <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
+
+                  {/* Avatar */}
+                  <div className="relative mb-3">
+                    {authUser?.photoUrl || telegramUser?.photoUrl ? (
+                      <img
+                        src={authUser?.photoUrl || telegramUser?.photoUrl}
+                        alt={authUser?.name || "User"}
+                        className="w-20 h-20 rounded-full object-cover border-2 border-white/20 shadow-lg"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#7928CA] flex items-center justify-center text-white text-2xl font-bold border-2 border-white/20 shadow-lg shadow-[#007AFF]/20">
+                        {(authUser?.name || telegramUser?.firstName || "U")[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#34C759] border-2 border-[#07070b] flex items-center justify-center shadow-md">
+                      <Check size={12} className="text-white stroke-[3]" />
+                    </div>
+                  </div>
+
+                  {/* Name and Username */}
+                  <h2 className="text-[19px] font-bold tracking-tight text-white flex items-center gap-1.5">
+                    <span>{authUser?.name || telegramUser?.firstName || (lang === "RU" ? "Пользователь" : "Foydalanuvchi")}</span>
+                    {(authUser?.isPremium || telegramUser?.isPremium) && (
+                      <span className="text-[10px] bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full shadow-sm">
+                        ★ PRO
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-[12px] text-white/50 mt-0.5 mb-2 font-mono">
+                    {telegramUser?.username ? `@${telegramUser.username}` : `ID: ${authUser?.telegramId || telegramUser?.telegramId || "—"}`}
+                  </p>
+
+                  {/* Phone Badge */}
+                  {authUser?.phone && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/80 text-[12px] font-mono mb-4 backdrop-blur-md">
+                      <Phone size={12} className="text-[#34C759]" />
+                      <span>{authUser.phone}</span>
+                    </div>
+                  )}
+
+                  {/* Stats Row */}
+                  <div className="w-full grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-left backdrop-blur-md">
+                      <div className="flex items-center gap-1.5 text-white/50 text-[11px] mb-1 font-medium">
+                        <Clock size={12} className="text-[#007AFF]" />
+                        <span>{lang === "RU" ? "Брони" : "Bandlovlar"}</span>
+                      </div>
+                      <p className="text-[17px] font-extrabold text-white">
+                        {authUser?.bookings?.length || 0}
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-left backdrop-blur-md">
+                      <div className="flex items-center gap-1.5 text-white/50 text-[11px] mb-1 font-medium">
+                        <ShieldCheck size={12} className="text-[#34C759]" />
+                        <span>{lang === "RU" ? "Статус" : "Status"}</span>
+                      </div>
+                      <p className="text-[15px] font-bold text-[#34C759]">
+                        {lang === "RU" ? "Подтвержден" : "Tasdiqlangan"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Recent Bookings Section if available */}
+                  {authUser?.bookings && authUser.bookings.length > 0 && (
+                    <div className="w-full mb-4">
+                      <div className="text-left mb-2 px-1">
+                        <h4 className="text-[12px] font-bold uppercase tracking-wider text-white/40">
+                          {lang === "RU" ? "История броней" : "Bandlovlar tarixi"}
+                        </h4>
+                      </div>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-none">
+                        {authUser.bookings.slice(0, 3).map((b: any) => (
+                          <div
+                            key={b.id}
+                            className="bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center justify-between text-left"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[13px] font-semibold text-white truncate">
+                                {b.usedProduct?.title || b.variant?.template?.title || "iPhone"}
+                              </p>
+                              <p className="text-[11px] text-white/50">
+                                {new Date(b.createdAt).toLocaleDateString(lang === "RU" ? "ru-RU" : "uz-UZ")}
+                              </p>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              b.status === "CONFIRMED"
+                                ? "bg-[#34C759]/15 text-[#34C759] border border-[#34C759]/25"
+                                : b.status === "CANCELLED"
+                                ? "bg-[#FF3B30]/15 text-[#FF3B30] border border-[#FF3B30]/25"
+                                : "bg-[#FF9500]/15 text-[#FF9500] border border-[#FF9500]/25"
+                            }`}>
+                              {b.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Support Action */}
+                  <a
+                    href="https://t.me/techstore_support"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-[13px] font-bold flex items-center justify-center gap-2 transition-all shadow-md backdrop-blur-md"
+                  >
+                    <MessageCircle size={16} className="text-[#007AFF]" />
+                    {lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"}
+                  </a>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
       {/* ═══════════════════════════════════════════════════
-          FLOATING CART PANEL
+          FLOATING CART PANEL (Only if items exist)
           ═══════════════════════════════════════════════════ */}
-      <CartPanel
-        shopId={shop.id}
-        isDark={d}
-        lang={lang}
-        currency={currency}
-        currencyRate={shop.currencyRate}
-      />
+      {itemCount > 0 && (
+        <CartPanel
+          shopId={shop.id}
+          isDark={d}
+          lang={lang}
+          currency={currency}
+          currencyRate={shop.currencyRate}
+        />
+      )}
 
       {/* ═══════════════════════════════════════════════════
           PRODUCT BOTTOM SHEET
@@ -698,6 +825,35 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         lang={lang}
         currency={currency}
         currencyRate={shop.currencyRate}
+      />
+
+      {/* ═══════════════════════════════════════════════════
+          ONBOARDING PHONE VERIFICATION MODAL
+          ═══════════════════════════════════════════════════ */}
+      <OnboardingModal
+        isOpen={needsPhone && !isAuthLoading}
+        telegramUser={telegramUser}
+        onRegister={registerWithPhone}
+        onSuccess={() => {
+          setToastState({
+            message:
+              lang === "RU"
+                ? "Успешно! Номер телефона привязан."
+                : "Muvaffaqiyatli! Telefon raqami biriktirildi.",
+            visible: true,
+            type: "success",
+          });
+        }}
+      />
+
+      {/* ═══════════════════════════════════════════════════
+          TOAST NOTIFICATIONS
+          ═══════════════════════════════════════════════════ */}
+      <Toast
+        message={toastState.message}
+        type={toastState.type}
+        visible={toastState.visible}
+        onClose={() => setToastState((prev) => ({ ...prev, visible: false }))}
       />
     </div>
   );

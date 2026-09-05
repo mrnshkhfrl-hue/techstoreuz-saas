@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag,
@@ -12,6 +12,8 @@ import {
   Loader2,
   CheckCircle,
 } from "lucide-react";
+import { useCart } from "@/providers/CartProvider";
+import { useTelegramAuth } from "@/hooks/useTelegramAuth";
 
 /* ═══════════════════════════════════════════════════════
    TYPES
@@ -23,6 +25,7 @@ export type CartItem = {
   title: string;
   variant?: string;
   price: number;
+  image?: string;
 };
 
 type CartPanelProps = {
@@ -59,27 +62,6 @@ function PhoneMini({ className = "" }: { className?: string }) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   HARDCODED TEST ITEMS
-   ═══════════════════════════════════════════════════════ */
-
-const MOCK_ITEMS: CartItem[] = [
-  {
-    id: "var_mock_1",
-    type: "NEW",
-    title: "iPhone 16 Pro Max",
-    variant: "256GB · Black Titanium · eSIM",
-    price: 1399,
-  },
-  {
-    id: "used_mock_2",
-    type: "USED",
-    title: "iPhone 15 Pro",
-    variant: "Б/У · 92% батарея · LL/A",
-    price: 820,
-  },
-];
-
-/* ═══════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════ */
 
@@ -91,28 +73,38 @@ export default function CartPanel({
   currencyRate,
 }: CartPanelProps) {
   const d = isDark;
+  const { items, removeItem, clearCart, itemCount, totalPrice } = useCart();
+  const { user: authUser, telegramUser, phone: defaultPhone } = useTelegramAuth();
+
   const [isExpanded, setIsExpanded] = useState(false);
-  const [items, setItems] = useState<CartItem[]>(MOCK_ITEMS);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("cart");
   const [phone, setPhone] = useState("+998 ");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const totalPrice = items.reduce((sum, i) => sum + i.price, 0);
-  const itemCount = items.length;
-
-  function removeItem(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  }
+  // Sync phone from auth user when available
+  useEffect(() => {
+    if (defaultPhone && defaultPhone.length > 5) {
+      setPhone(defaultPhone);
+    }
+  }, [defaultPhone]);
 
   async function handleBookingSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!phone || phone.trim().length < 9) {
-      setErrorMessage(lang === "RU" ? "Введите корректный номер телефона" : "To'g'ri telefon raqam kiriting");
+      setErrorMessage(
+        lang === "RU"
+          ? "Введите корректный номер телефона"
+          : "To'g'ri telefon raqam kiriting"
+      );
       return;
     }
 
     setErrorMessage("");
     setCheckoutStep("loading");
+
+    const effectiveTelegramId =
+      authUser?.telegramId ||
+      (telegramUser?.telegramId ? String(telegramUser.telegramId) : "123456789");
 
     try {
       const res = await fetch("/api/bookings", {
@@ -120,7 +112,7 @@ export default function CartPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shopId,
-          telegramId: "123456789",
+          telegramId: effectiveTelegramId,
           phone: phone.trim(),
           items: items.map((item) => ({ type: item.type, id: item.id })),
         }),
@@ -130,23 +122,25 @@ export default function CartPanel({
 
       if (res.ok && data.success) {
         setCheckoutStep("success");
+        clearCart();
       } else {
-        setErrorMessage(data.error || "Ошибка бронирования");
+        setErrorMessage(data.error || (lang === "RU" ? "Ошибка бронирования" : "Band qilishda xatolik"));
         setCheckoutStep("phone_input");
       }
     } catch (err: any) {
       console.error("Booking error:", err);
-      setErrorMessage("Ошибка сети при отправке брони");
+      setErrorMessage(lang === "RU" ? "Ошибка сети при отправке брони" : "Tarmoq xatosi yuz berdi");
       setCheckoutStep("phone_input");
     }
   }
 
   function handleCloseSuccess() {
-    setItems([]);
+    clearCart();
     setCheckoutStep("cart");
     setIsExpanded(false);
   }
 
+  // Strictly do NOT render if cart is empty and not on success modal
   if (itemCount === 0 && checkoutStep !== "success") return null;
 
   return (
@@ -160,9 +154,12 @@ export default function CartPanel({
     >
       <motion.div
         layout
-        className="pointer-events-auto rounded-glass overflow-hidden liquid-glass-float"
+        className="pointer-events-auto rounded-3xl overflow-hidden bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative"
         transition={{ type: "spring", stiffness: 350, damping: 32 }}
       >
+        {/* Glass Edge Highlight */}
+        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+
         {/* ─── Collapsed Header ─── */}
         <motion.button
           layout="position"
@@ -182,11 +179,11 @@ export default function CartPanel({
             <div className="relative">
               <div
                 className={`
-                  w-10 h-10 rounded-glass-btn flex items-center justify-center
-                  ${d ? "bg-[#007AFF]/12" : "bg-[#007AFF]/8"}
+                  w-10 h-10 rounded-2xl flex items-center justify-center
+                  bg-[#007AFF]/15 border border-[#007AFF]/25 text-[#007AFF] shadow-[0_0_15px_rgba(0,122,255,0.2)]
                 `}
               >
-                <ShoppingBag size={18} className="text-[#007AFF]" />
+                <ShoppingBag size={18} />
               </div>
               {/* Badge */}
               {itemCount > 0 && (
@@ -194,7 +191,7 @@ export default function CartPanel({
                   key={itemCount}
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-[#007AFF] rounded-full flex items-center justify-center shadow-md shadow-[#007AFF]/25"
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-[#007AFF] rounded-full flex items-center justify-center shadow-md shadow-[#007AFF]/40"
                 >
                   <span className="text-[10px] font-bold text-white">{itemCount}</span>
                 </motion.div>
@@ -203,12 +200,12 @@ export default function CartPanel({
 
             {/* Center: label */}
             <div className="text-left">
-              <p className={`font-semibold text-[13px] leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+              <p className="font-semibold text-[13px] leading-none text-white">
                 {checkoutStep === "success"
                   ? lang === "RU" ? "Забронировано!" : "Band qilindi!"
                   : lang === "RU" ? "Корзина" : "Savat"}
               </p>
-              <p className={`text-[11px] mt-0.5 ${d ? "text-white/30" : "text-[#1C1C1E]/30"}`}>
+              <p className="text-[11px] mt-0.5 text-white/50">
                 {checkoutStep === "success"
                   ? lang === "RU" ? "Успешно" : "Muvaffaqiyatli"
                   : `${itemCount} ${lang === "RU" ? (itemCount === 1 ? "товар" : itemCount < 5 ? "товара" : "товаров") : "mahsulot"}`}
@@ -219,19 +216,16 @@ export default function CartPanel({
           {/* Right: total + chevron */}
           <div className="flex items-center gap-2">
             {checkoutStep !== "success" && (
-              <p className="text-[14px] font-bold text-[#007AFF]">
+              <p className="text-[14px] font-bold text-[#5AC8FA]">
                 {fmtPrice(totalPrice, currencyRate, currency)}
               </p>
             )}
             <motion.div
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className={`
-                w-7 h-7 rounded-full flex items-center justify-center
-                ${d ? "bg-white/[0.06]" : "bg-black/[0.04]"}
-              `}
+              className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 border border-white/10"
             >
-              <ChevronUp size={14} className={d ? "text-white/40" : "text-[#1C1C1E]/40"} />
+              <ChevronUp size={14} className="text-white/70" />
             </motion.div>
           </div>
         </motion.button>
@@ -247,7 +241,7 @@ export default function CartPanel({
               className="overflow-hidden"
             >
               {/* Divider */}
-              <div className={`mx-4 h-px ${d ? "bg-white/[0.04]" : "bg-black/[0.04]"}`} />
+              <div className="mx-4 h-px bg-white/10" />
 
               {/* ════════ STEP 1: CART ITEMS ════════ */}
               {checkoutStep === "cart" && (
@@ -259,7 +253,7 @@ export default function CartPanel({
                   transition={{ duration: 0.2 }}
                 >
                   {/* Items list */}
-                  <div className="px-4 py-3 space-y-2.5 max-h-[240px] overflow-y-auto overscroll-contain">
+                  <div className="px-4 py-3 space-y-2.5 max-h-[240px] overflow-y-auto overscroll-contain scrollbar-none">
                     {items.map((item, i) => (
                       <motion.div
                         key={item.id}
@@ -267,29 +261,24 @@ export default function CartPanel({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -60 }}
                         transition={{ delay: i * 0.05 }}
-                        className={`flex items-center gap-3 p-3 rounded-glass-btn liquid-glass`}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm transition-all"
                       >
                         {/* Thumbnail */}
-                        <div
-                          className={`
-                            w-12 h-14 rounded-glass-xs flex-shrink-0 flex items-center justify-center
-                            ${d ? "bg-gradient-to-b from-white/[0.03] to-transparent" : "bg-gradient-to-b from-black/[0.02] to-transparent"}
-                          `}
-                        >
-                          <PhoneMini className={`w-7 h-10 ${d ? "text-white" : "text-gray-400"}`} />
+                        <div className="w-12 h-14 rounded-xl flex-shrink-0 flex items-center justify-center bg-white/5 border border-white/10">
+                          <PhoneMini className="w-7 h-10 text-white/70" />
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-semibold truncate ${d ? "text-white/90" : "text-[#1C1C1E]"}`}>
+                          <p className="text-[13px] font-semibold truncate text-white">
                             {item.title}
                           </p>
                           {item.variant && (
-                            <p className={`text-[11px] mt-0.5 truncate ${d ? "text-white/30" : "text-[#1C1C1E]/30"}`}>
+                            <p className="text-[11px] mt-0.5 truncate text-white/50">
                               {item.variant}
                             </p>
                           )}
-                          <p className="text-[13px] font-bold text-[#007AFF] mt-1">
+                          <p className="text-[13px] font-bold text-[#5AC8FA] mt-1">
                             {fmtPrice(item.price, currencyRate, currency)}
                           </p>
                         </div>
@@ -302,11 +291,7 @@ export default function CartPanel({
                             e.stopPropagation();
                             removeItem(item.id);
                           }}
-                          className={`
-                            w-8 h-8 rounded-glass-xs flex items-center justify-center flex-shrink-0
-                            ${d ? "bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15" : "bg-[#FF3B30]/6 hover:bg-[#FF3B30]/10"}
-                            transition-colors
-                          `}
+                          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#FF3B30]/15 hover:bg-[#FF3B30]/25 border border-[#FF3B30]/20 transition-colors"
                         >
                           <Trash2 size={14} className="text-[#FF3B30]" />
                         </motion.button>
@@ -316,14 +301,9 @@ export default function CartPanel({
 
                   {/* Timer block */}
                   <div className="px-4 pb-3">
-                    <div
-                      className={`
-                        flex items-center gap-2.5 px-4 py-3 rounded-glass-btn
-                        ${d ? "bg-[#FF9500]/6 border border-[#FF9500]/10" : "bg-[#FF9500]/5 border border-[#FF9500]/10"}
-                      `}
-                    >
-                      <Clock size={15} className="text-[#FF9500]" />
-                      <p className={`text-[12px] font-medium text-[#FF9500]`}>
+                    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#FF9500]/10 border border-[#FF9500]/20 text-[#FF9500]">
+                      <Clock size={15} />
+                      <p className="text-[12px] font-medium">
                         {lang === "RU"
                           ? "Бронь удерживается 24 часа"
                           : "Band 24 soat davomida saqlanadi"}
@@ -332,15 +312,15 @@ export default function CartPanel({
                   </div>
 
                   {/* Divider */}
-                  <div className={`mx-4 h-px ${d ? "bg-white/[0.04]" : "bg-black/[0.04]"}`} />
+                  <div className="mx-4 h-px bg-white/10" />
 
                   {/* Total + CTA */}
                   <div className="px-4 py-3.5">
                     <div className="flex items-center justify-between mb-3">
-                      <p className={`text-[12px] font-semibold uppercase tracking-[0.1em] ${d ? "text-white/25" : "text-[#1C1C1E]/25"}`}>
+                      <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-white/40">
                         {lang === "RU" ? "Итого" : "Jami"}
                       </p>
-                      <p className={`text-[18px] font-extrabold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                      <p className="text-[18px] font-extrabold tracking-tight text-white">
                         {fmtPrice(totalPrice, currencyRate, currency)}
                       </p>
                     </div>
@@ -349,7 +329,7 @@ export default function CartPanel({
                       whileTap={{ scale: 0.96 }}
                       transition={tapSpring}
                       onClick={() => setCheckoutStep("phone_input")}
-                      className="w-full py-4 rounded-glass-btn btn-system-blue text-[15px] flex items-center justify-center gap-2"
+                      className="w-full py-4 rounded-2xl bg-[#007AFF] hover:bg-[#0A84FF] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all"
                     >
                       <ShoppingBag size={17} />
                       {lang === "RU" ? "Оформить бронь" : "Bandni rasmiylashtirish"}
@@ -373,15 +353,15 @@ export default function CartPanel({
                       whileTap={{ scale: 0.9 }}
                       transition={tapSpring}
                       onClick={() => setCheckoutStep("cart")}
-                      className="w-8 h-8 rounded-full flex items-center justify-center liquid-glass"
+                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 border border-white/10"
                     >
-                      <ArrowLeft size={16} className={d ? "text-white/60" : "text-[#1C1C1E]/60"} />
+                      <ArrowLeft size={16} className="text-white/70" />
                     </motion.button>
                     <div>
-                      <h4 className={`text-[15px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                      <h4 className="text-[15px] font-bold tracking-tight text-white">
                         {lang === "RU" ? "Контактный телефон" : "Aloqa telefoni"}
                       </h4>
-                      <p className={`text-[11px] ${d ? "text-white/30" : "text-[#1C1C1E]/30"}`}>
+                      <p className="text-[11px] text-white/40">
                         {lang === "RU" ? "Для подтверждения вашей брони" : "Bandlovni tasdiqlash uchun"}
                       </p>
                     </div>
@@ -390,21 +370,14 @@ export default function CartPanel({
                   <form onSubmit={handleBookingSubmit} className="space-y-3 pt-1">
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                        <Phone size={16} className={d ? "text-white/30" : "text-[#1C1C1E]/30"} />
+                        <Phone size={16} className="text-white/40" />
                       </div>
                       <input
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+998 90 123 45 67"
-                        className={`
-                          w-full pl-11 pr-4 py-3.5 rounded-glass-btn text-[15px] font-semibold outline-none
-                          transition-all duration-200 liquid-glass
-                          ${d
-                            ? "text-white focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20"
-                            : "text-[#1C1C1E] focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/15"
-                          }
-                        `}
+                        className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] font-semibold outline-none transition-all duration-200 bg-white/5 border border-white/10 text-white placeholder:text-white/30 backdrop-blur-md focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25"
                         autoFocus
                       />
                     </div>
@@ -419,7 +392,7 @@ export default function CartPanel({
                       whileTap={{ scale: 0.96 }}
                       transition={tapSpring}
                       type="submit"
-                      className="w-full py-4 rounded-glass-btn btn-system-blue text-[15px] flex items-center justify-center gap-2 mt-2"
+                      className="w-full py-4 rounded-2xl bg-[#007AFF] hover:bg-[#0A84FF] text-white font-bold text-[15px] flex items-center justify-center gap-2 mt-2 shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all"
                     >
                       {lang === "RU" ? "Подтвердить бронь" : "Bandni tasdiqlash"}
                     </motion.button>
@@ -437,10 +410,10 @@ export default function CartPanel({
                   className="px-4 py-12 flex flex-col items-center justify-center text-center space-y-3"
                 >
                   <Loader2 size={36} className="text-[#007AFF] animate-spin" />
-                  <p className={`text-[14px] font-semibold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                  <p className="text-[14px] font-semibold text-white">
                     {lang === "RU" ? "Оформляем бронь..." : "Band rasmiylashtirilmoqda..."}
                   </p>
-                  <p className={`text-[12px] ${d ? "text-white/30" : "text-[#1C1C1E]/30"}`}>
+                  <p className="text-[12px] text-white/40">
                     {lang === "RU" ? "Пожалуйста, подождите" : "Iltimos, kuting"}
                   </p>
                 </motion.div>
@@ -460,21 +433,21 @@ export default function CartPanel({
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
-                    className="w-16 h-16 rounded-full bg-[#34C759]/10 border border-[#34C759]/15 flex items-center justify-center text-[#34C759] shadow-lg shadow-[#34C759]/10"
+                    className="w-16 h-16 rounded-full bg-[#34C759]/15 border border-[#34C759]/30 flex items-center justify-center text-[#34C759] shadow-[0_0_25px_rgba(52,199,89,0.3)]"
                   >
                     <CheckCircle size={36} strokeWidth={2.5} />
                   </motion.div>
 
                   <div className="space-y-1">
-                    <h3 className={`text-[18px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                    <h3 className="text-[18px] font-bold tracking-tight text-white">
                       {lang === "RU" ? "Успешно забронировано!" : "Muvaffaqiyatli band qilindi!"}
                     </h3>
-                    <p className={`text-[13px] font-medium leading-relaxed max-w-[280px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
+                    <p className="text-[13px] font-medium leading-relaxed max-w-[280px] text-white/60">
                       {lang === "RU"
                         ? "Товары успешно забронированы на 24 часа"
                         : "Mahsulotlar 24 soatga band qilindi"}
                     </p>
-                    <p className={`text-[11px] pt-1 ${d ? "text-white/25" : "text-[#1C1C1E]/25"}`}>
+                    <p className="text-[11px] pt-1 text-white/35">
                       {lang === "RU" ? `Менеджер свяжется с вами по номеру ${phone}` : `Menejer сиз bilan ${phone} raqami orqali bog'lanadi`}
                     </p>
                   </div>
@@ -483,7 +456,7 @@ export default function CartPanel({
                     whileTap={{ scale: 0.96 }}
                     transition={tapSpring}
                     onClick={handleCloseSuccess}
-                    className="w-full py-3.5 rounded-glass-btn btn-system-blue text-[14px] mt-2"
+                    className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-[14px] mt-2 transition-colors"
                   >
                     {lang === "RU" ? "Закрыть" : "Yopish"}
                   </motion.button>

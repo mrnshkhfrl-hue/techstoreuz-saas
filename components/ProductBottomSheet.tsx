@@ -13,6 +13,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useTelegramContext } from "@/components/TelegramProvider";
+import { useCart } from "@/providers/CartProvider";
 
 /* ═══════════════════════════════════════════════════════
    TYPES
@@ -163,6 +164,31 @@ export default function ProductBottomSheet({
 
   const inStock = matchedVariant ? matchedVariant.stock > 0 : true;
 
+  const { addItem } = useCart();
+
+  function handleAddToCart() {
+    haptic.impactOccurred('medium');
+    if (isNew) {
+      if (!inStock) return;
+      addItem({
+        id: matchedVariant?.id || product.id,
+        type: "NEW",
+        title: product.title,
+        variant: [selectedStorage, selectedColor, selectedSim].filter(Boolean).join(" · "),
+        price: currentPrice,
+      });
+    } else {
+      addItem({
+        id: product.id,
+        type: "USED",
+        title: product.title,
+        variant: `Б/У · ${product.batteryHealth}% АКБ · ${product.region}`,
+        price: currentPrice,
+      });
+    }
+    onClose();
+  }
+
   /* Battery color for used */
   const batteryColor = useMemo(() => {
     if (isNew || !product) return "";
@@ -208,9 +234,8 @@ export default function ProductBottomSheet({
             className={`
               fixed bottom-0 left-0 right-0
               mx-auto w-full max-w-[430px] z-[90]
-              rounded-t-glass-2xl overflow-hidden
-              liquid-glass-sheet
-              ${d ? "" : ""}
+              rounded-t-3xl overflow-hidden
+              bg-[#0a0a0f]/90 backdrop-blur-2xl border-t border-x border-white/10 shadow-2xl
             `}
             style={{
               maxHeight: "92vh",
@@ -504,17 +529,15 @@ export default function ProductBottomSheet({
                   whileTap={{ scale: 0.97 }}
                   transition={tapSpring}
                   disabled={isNew && !inStock}
-                  onClick={() => haptic.impactOccurred('medium')}
+                  onClick={handleAddToCart}
                   className={`
-                    w-full py-4 rounded-glass-btn text-[15px] font-bold
+                    w-full py-4 rounded-2xl text-[15px] font-bold
                     flex items-center justify-center gap-2
                     transition-all
                     ${
                       isNew && !inStock
-                        ? d
-                          ? "bg-white/[0.04] text-white/20 cursor-not-allowed"
-                          : "bg-black/[0.04] text-[#1C1C1E]/20 cursor-not-allowed"
-                        : "btn-system-blue"
+                        ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
+                        : "bg-[#007AFF] hover:bg-[#0A84FF] text-white shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)]"
                     }
                   `}
                 >

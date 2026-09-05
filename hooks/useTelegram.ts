@@ -11,6 +11,7 @@ export interface TelegramWebAppUser {
   lastName?: string;
   languageCode?: string;
   photoUrl?: string;
+  isPremium?: boolean;
 }
 
 export type HapticImpactStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
@@ -149,6 +150,7 @@ export function useTelegram(): UseTelegramReturn {
         lastName: tgUser.last_name || '',
         languageCode: tgUser.language_code || 'ru',
         photoUrl: tgUser.photo_url || undefined,
+        isPremium: Boolean(tgUser.is_premium),
       };
     }
     // Fallback: return mock user on localhost, null otherwise

@@ -21,6 +21,8 @@ export const viewport: Viewport = {
 
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { CurrencyProvider } from "@/providers/CurrencyProvider";
+import { CartProvider } from "@/providers/CartProvider";
+import AnimatedBackground from "@/components/AnimatedBackground";
 import { getCurrentExchangeRate } from "@/lib/currency";
 
 export default async function RootLayout({
@@ -30,7 +32,7 @@ export default async function RootLayout({
 }) {
   const initialExchangeRate = await getCurrentExchangeRate();
   return (
-    <html lang="ru" className="dark bg-black" style={{ backgroundColor: "#000000", colorScheme: "dark" }} suppressHydrationWarning>
+    <html lang="ru" className="dark" style={{ backgroundColor: "#07070b", colorScheme: "dark" }} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -43,13 +45,18 @@ export default async function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans antialiased bg-black text-white">
+      <body className="font-sans antialiased bg-[#07070b] text-white min-h-screen relative selection:bg-[#007AFF]/30">
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+        <AnimatedBackground />
         <CurrencyProvider initialExchangeRate={initialExchangeRate}>
           <TelegramProvider>
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              {children}
-            </ThemeProvider>
+            <CartProvider>
+              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+                <div className="relative z-10 min-h-screen">
+                  {children}
+                </div>
+              </ThemeProvider>
+            </CartProvider>
           </TelegramProvider>
         </CurrencyProvider>
       </body>
