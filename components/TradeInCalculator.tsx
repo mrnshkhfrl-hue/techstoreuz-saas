@@ -615,8 +615,8 @@ export default function TradeInCalculator({
             {step < 5 && (
               <div
                 className={`
-                  p-5 border-t ${d ? "border-white/[0.04]" : "border-black/[0.04]"}
-                  backdrop-blur-3xl
+                  p-5 border-t backdrop-blur-3xl
+                  ${d ? "border-white/[0.08] bg-black/40" : "border-black/[0.08] bg-white/60"}
                 `}
               >
                 <motion.button

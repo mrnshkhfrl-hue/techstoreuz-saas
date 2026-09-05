@@ -154,11 +154,15 @@ export default function CartPanel({
     >
       <motion.div
         layout
-        className="pointer-events-auto rounded-3xl overflow-hidden bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative"
+        className={`pointer-events-auto rounded-3xl overflow-hidden backdrop-blur-xl border shadow-2xl relative ${
+          d ? "bg-[#111113]/90 border-white/10 text-white" : "bg-white/95 border-black/10 text-[#1C1C1E] shadow-black/15"
+        }`}
         transition={{ type: "spring", stiffness: 350, damping: 32 }}
       >
         {/* Glass Edge Highlight */}
-        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+        <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+          d ? "via-white/25" : "via-black/10"
+        } to-transparent pointer-events-none`} />
 
         {/* ─── Collapsed Header ─── */}
         <motion.button
@@ -200,12 +204,12 @@ export default function CartPanel({
 
             {/* Center: label */}
             <div className="text-left">
-              <p className="font-semibold text-[13px] leading-none text-white">
+              <p className={`font-semibold text-[13px] leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                 {checkoutStep === "success"
                   ? lang === "RU" ? "Забронировано!" : "Band qilindi!"
                   : lang === "RU" ? "Корзина" : "Savat"}
               </p>
-              <p className="text-[11px] mt-0.5 text-white/50">
+              <p className={`text-[11px] mt-0.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
                 {checkoutStep === "success"
                   ? lang === "RU" ? "Успешно" : "Muvaffaqiyatli"
                   : `${itemCount} ${lang === "RU" ? (itemCount === 1 ? "товар" : itemCount < 5 ? "товара" : "товаров") : "mahsulot"}`}
@@ -216,16 +220,18 @@ export default function CartPanel({
           {/* Right: total + chevron */}
           <div className="flex items-center gap-2">
             {checkoutStep !== "success" && (
-              <p className="text-[14px] font-bold text-[#5AC8FA]">
+              <p className="text-[14px] font-bold text-[#007AFF]">
                 {fmtPrice(totalPrice, currencyRate, currency)}
               </p>
             )}
             <motion.div
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 border border-white/10"
+              className={`w-7 h-7 rounded-full flex items-center justify-center border ${
+                d ? "bg-white/10 border-white/10 text-white/70" : "bg-black/5 border-black/10 text-[#1C1C1E]/70"
+              }`}
             >
-              <ChevronUp size={14} className="text-white/70" />
+              <ChevronUp size={14} />
             </motion.div>
           </div>
         </motion.button>
@@ -241,7 +247,7 @@ export default function CartPanel({
               className="overflow-hidden"
             >
               {/* Divider */}
-              <div className="mx-4 h-px bg-white/10" />
+              <div className={`mx-4 h-px ${d ? "bg-white/10" : "bg-black/10"}`} />
 
               {/* ════════ STEP 1: CART ITEMS ════════ */}
               {checkoutStep === "cart" && (
@@ -261,24 +267,28 @@ export default function CartPanel({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -60 }}
                         transition={{ delay: i * 0.05 }}
-                        className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm transition-all"
+                        className={`flex items-center gap-3 p-3 rounded-2xl backdrop-blur-md border shadow-sm transition-all ${
+                          d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"
+                        }`}
                       >
                         {/* Thumbnail */}
-                        <div className="w-12 h-14 rounded-xl flex-shrink-0 flex items-center justify-center bg-white/5 border border-white/10">
-                          <PhoneMini className="w-7 h-10 text-white/70" />
+                        <div className={`w-12 h-14 rounded-xl flex-shrink-0 flex items-center justify-center border ${
+                          d ? "bg-white/5 border-white/10 text-white/70" : "bg-black/5 border-black/10 text-[#1C1C1E]/60"
+                        }`}>
+                          <PhoneMini className="w-7 h-10" />
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold truncate text-white">
+                          <p className={`text-[13px] font-semibold truncate ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                             {item.title}
                           </p>
                           {item.variant && (
-                            <p className="text-[11px] mt-0.5 truncate text-white/50">
+                            <p className={`text-[11px] mt-0.5 truncate ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
                               {item.variant}
                             </p>
                           )}
-                          <p className="text-[13px] font-bold text-[#5AC8FA] mt-1">
+                          <p className="text-[13px] font-bold text-[#007AFF] mt-1">
                             {fmtPrice(item.price, currencyRate, currency)}
                           </p>
                         </div>
@@ -312,15 +322,15 @@ export default function CartPanel({
                   </div>
 
                   {/* Divider */}
-                  <div className="mx-4 h-px bg-white/10" />
+                  <div className={`mx-4 h-px ${d ? "bg-white/10" : "bg-black/10"}`} />
 
                   {/* Total + CTA */}
                   <div className="px-4 py-3.5">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-white/40">
+                      <p className={`text-[12px] font-semibold uppercase tracking-[0.1em] ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                         {lang === "RU" ? "Итого" : "Jami"}
                       </p>
-                      <p className="text-[18px] font-extrabold tracking-tight text-white">
+                      <p className={`text-[18px] font-extrabold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                         {fmtPrice(totalPrice, currencyRate, currency)}
                       </p>
                     </div>
@@ -353,15 +363,17 @@ export default function CartPanel({
                       whileTap={{ scale: 0.9 }}
                       transition={tapSpring}
                       onClick={() => setCheckoutStep("cart")}
-                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 border border-white/10"
+                      className={`w-8 h-8 rounded-full flex items-center justify-center border ${
+                        d ? "bg-white/10 border-white/10 text-white/70" : "bg-black/5 border-black/10 text-[#1C1C1E]/70"
+                      }`}
                     >
-                      <ArrowLeft size={16} className="text-white/70" />
+                      <ArrowLeft size={16} />
                     </motion.button>
                     <div>
-                      <h4 className="text-[15px] font-bold tracking-tight text-white">
+                      <h4 className={`text-[15px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                         {lang === "RU" ? "Контактный телефон" : "Aloqa telefoni"}
                       </h4>
-                      <p className="text-[11px] text-white/40">
+                      <p className={`text-[11px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                         {lang === "RU" ? "Для подтверждения вашей брони" : "Bandlovni tasdiqlash uchun"}
                       </p>
                     </div>
@@ -370,14 +382,18 @@ export default function CartPanel({
                   <form onSubmit={handleBookingSubmit} className="space-y-3 pt-1">
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                        <Phone size={16} className="text-white/40" />
+                        <Phone size={16} className={d ? "text-white/40" : "text-[#1C1C1E]/40"} />
                       </div>
                       <input
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+998 90 123 45 67"
-                        className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] font-semibold outline-none transition-all duration-200 bg-white/5 border border-white/10 text-white placeholder:text-white/30 backdrop-blur-md focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25"
+                        className={`w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] font-semibold outline-none transition-all duration-200 border backdrop-blur-md focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 ${
+                          d
+                            ? "bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                            : "bg-black/[0.04] border-black/10 text-[#1C1C1E] placeholder:text-[#1C1C1E]/30"
+                        }`}
                         autoFocus
                       />
                     </div>
@@ -410,10 +426,10 @@ export default function CartPanel({
                   className="px-4 py-12 flex flex-col items-center justify-center text-center space-y-3"
                 >
                   <Loader2 size={36} className="text-[#007AFF] animate-spin" />
-                  <p className="text-[14px] font-semibold text-white">
+                  <p className={`text-[14px] font-semibold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                     {lang === "RU" ? "Оформляем бронь..." : "Band rasmiylashtirilmoqda..."}
                   </p>
-                  <p className="text-[12px] text-white/40">
+                  <p className={`text-[12px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                     {lang === "RU" ? "Пожалуйста, подождите" : "Iltimos, kuting"}
                   </p>
                 </motion.div>
@@ -439,15 +455,15 @@ export default function CartPanel({
                   </motion.div>
 
                   <div className="space-y-1">
-                    <h3 className="text-[18px] font-bold tracking-tight text-white">
+                    <h3 className={`text-[18px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                       {lang === "RU" ? "Успешно забронировано!" : "Muvaffaqiyatli band qilindi!"}
                     </h3>
-                    <p className="text-[13px] font-medium leading-relaxed max-w-[280px] text-white/60">
+                    <p className={`text-[13px] font-medium leading-relaxed max-w-[280px] ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
                       {lang === "RU"
                         ? "Товары успешно забронированы на 24 часа"
                         : "Mahsulotlar 24 soatga band qilindi"}
                     </p>
-                    <p className="text-[11px] pt-1 text-white/35">
+                    <p className={`text-[11px] pt-1 ${d ? "text-white/35" : "text-[#1C1C1E]/35"}`}>
                       {lang === "RU" ? `Менеджер свяжется с вами по номеру ${phone}` : `Menejer сиз bilan ${phone} raqami orqali bog'lanadi`}
                     </p>
                   </div>
@@ -456,7 +472,9 @@ export default function CartPanel({
                     whileTap={{ scale: 0.96 }}
                     transition={tapSpring}
                     onClick={handleCloseSuccess}
-                    className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-[14px] mt-2 transition-colors"
+                    className={`w-full py-3.5 rounded-2xl border font-bold text-[14px] mt-2 transition-colors ${
+                      d ? "bg-white/10 hover:bg-white/15 border-white/15 text-white" : "bg-black/5 hover:bg-black/10 border-black/10 text-[#1C1C1E]"
+                    }`}
                   >
                     {lang === "RU" ? "Закрыть" : "Yopish"}
                   </motion.button>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "next-themes";
 import {
   Sun,
   Moon,
@@ -98,7 +99,15 @@ type StorefrontProps = {
 
 export default function StorefrontClient({ shop }: StorefrontProps) {
   /* ── State ── */
-  const [isDark, setIsDark] = useState(true);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const d = mounted ? resolvedTheme === "dark" : true;
+  const isDark = d;
+
   const [activeTab, setActiveTab] = useState<"new" | "used" | "profile">("new");
   const [currency, setCurrency] = useState<"USD" | "UZS">("UZS");
   const [lang, setLang] = useState<"RU" | "UZ">("RU");
@@ -122,7 +131,6 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
   }>({ message: "", visible: false, type: "success" });
 
   /* ── Derived ── */
-  const d = isDark;
   const tabs = useMemo(
     () => [
       { key: "new" as const, label: lang === "RU" ? "Новые" : "Yangi" },
@@ -134,19 +142,25 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
   return (
     <div
-      className="max-w-[430px] mx-auto min-h-screen relative font-sans text-white bg-transparent sm:border-x sm:border-white/10"
+      className={`max-w-[430px] mx-auto min-h-screen relative font-sans ${
+        d ? "text-white sm:border-white/10" : "text-[#1C1C1E] sm:border-black/10"
+      } bg-transparent sm:border-x transition-colors duration-200`}
     >
       {/* ═══════════════════════════════════════════════════
           HEADER — Liquid Glass
           ═══════════════════════════════════════════════════ */}
       <header
-        className="sticky top-0 z-40 bg-white/5 backdrop-blur-lg border-b border-white/10 shadow-xl transition-colors duration-300 relative"
+        className={`sticky top-0 z-40 ${
+          d ? "bg-[#07070b]/75 border-white/10" : "bg-white/85 border-black/10 shadow-sm"
+        } backdrop-blur-xl border-b shadow-xl transition-colors duration-300 relative`}
       >
-        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+        <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+          d ? "via-white/20" : "via-black/10"
+        } to-transparent pointer-events-none`} />
         <div className="px-4 pt-10 pb-3">
           {/* Row 1: Title + controls */}
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-[22px] font-bold tracking-tight leading-none">
+            <h1 className={`text-[22px] font-bold tracking-tight leading-none ${d ? "text-white" : "text-[#1C1C1E]"}`}>
               {shop.name}
             </h1>
             <div className="flex items-center gap-1.5">
@@ -154,7 +168,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
               <motion.button
                 whileTap={{ scale: 0.85 }}
                 transition={tapSpring}
-                onClick={() => setIsDark(!isDark)}
+                onClick={() => setTheme(d ? "light" : "dark")}
                 className={`
                   w-8 h-8 rounded-full flex items-center justify-center
                   liquid-glass transition-colors
@@ -176,7 +190,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       key="moon"
                       initial={{ rotate: 90, opacity: 0 }}
                       animate={{ rotate: 0, opacity: 1 }}
-                      exit={{ rotate: -90, opacity: 0 }}
+                      exit={{ rotate: 90, opacity: 0 }}
                       transition={{ duration: 0.2 }}
                     >
                       <Moon size={14} className="text-[#1C1C1E]" />
@@ -281,30 +295,34 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
           whileTap={{ scale: 0.98 }}
           transition={tapSpring}
           onClick={() => setIsTradeInOpen(true)}
-          className="w-full rounded-3xl relative overflow-hidden cursor-pointer bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl group"
+          className={`w-full rounded-3xl relative overflow-hidden cursor-pointer ${
+            d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"
+          } backdrop-blur-lg border group transition-all`}
         >
           {/* Glass Edge Reflection */}
-          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+          <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+            d ? "via-white/25" : "via-black/10"
+          } to-transparent pointer-events-none`} />
 
           {/* Ambient inner soft glowing orbs */}
-          <div className="absolute -right-8 -top-8 w-40 h-40 bg-[#007AFF]/25 rounded-full blur-2xl pointer-events-none group-hover:scale-110 transition-transform duration-500" />
-          <div className="absolute left-6 -bottom-10 w-36 h-36 bg-[#7928CA]/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -right-8 -top-8 w-40 h-40 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none group-hover:scale-110 transition-transform duration-500" />
+          <div className="absolute left-6 -bottom-10 w-36 h-36 bg-[#7928CA]/15 rounded-full blur-2xl pointer-events-none" />
 
           <div className="relative z-10 p-5">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-full bg-[#007AFF]/20 border border-[#007AFF]/30 flex items-center justify-center text-[#5AC8FA]">
+              <div className="w-6 h-6 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 flex items-center justify-center text-[#007AFF]">
                 <ArrowLeftRight size={12} />
               </div>
-              <p className="text-[#5AC8FA] text-[11px] font-bold uppercase tracking-[0.15em]">
+              <p className="text-[#007AFF] text-[11px] font-bold uppercase tracking-[0.15em]">
                 Trade-in Express
               </p>
             </div>
-            <h2 className="text-white text-[18px] font-bold mb-1 leading-snug tracking-tight">
+            <h2 className={`${d ? "text-white" : "text-[#1C1C1E]"} text-[18px] font-bold mb-1 leading-snug tracking-tight`}>
               {lang === "RU"
                 ? "Обменяйте старое на новое"
                 : "Eskisini yangisiga almashtiring"}
             </h2>
-            <p className="text-white/60 text-[13px] mb-4 leading-relaxed max-w-[250px]">
+            <p className={`${d ? "text-white/60" : "text-[#1C1C1E]/60"} text-[13px] mb-4 leading-relaxed max-w-[250px]`}>
               {lang === "RU"
                 ? "Оценим ваше устройство за 2 минуты и предложим лучшую цену."
                 : "Qurilmangizni 2 daqiqada baholaymiz va eng yaxshi narxni beramiz."}
@@ -316,10 +334,14 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                 e.stopPropagation();
                 setIsTradeInOpen(true);
               }}
-              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white border border-white/20 text-[13px] font-bold rounded-2xl shadow-lg backdrop-blur-md flex items-center gap-2 transition-all"
+              className={`px-5 py-2.5 ${
+                d
+                  ? "bg-white/10 hover:bg-white/15 text-white border-white/20"
+                  : "bg-black/5 hover:bg-black/10 text-[#1C1C1E] border-black/10"
+              } border text-[13px] font-bold rounded-2xl shadow-sm backdrop-blur-md flex items-center gap-2 transition-all`}
             >
               <span>{lang === "RU" ? "Оценить устройство" : "Qurilmani baholash"}</span>
-              <span className="text-[#5AC8FA]">→</span>
+              <span className="text-[#007AFF]">→</span>
             </motion.button>
           </div>
         </motion.div>
@@ -372,10 +394,16 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                         }}
                         whileTap={{ scale: 0.96 }}
                         onClick={() => setSelectedProduct(p)}
-                        className="bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl rounded-3xl p-4 flex flex-col cursor-pointer relative overflow-hidden transition-all group hover:bg-white/[0.08] hover:border-white/20"
+                        className={`rounded-3xl p-4 flex flex-col cursor-pointer relative overflow-hidden transition-all group border ${
+                          d
+                            ? "bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20 shadow-xl"
+                            : "bg-white border-black/10 hover:border-black/20 shadow-sm hover:shadow-md"
+                        }`}
                       >
                         {/* Glass Edge highlight */}
-                        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                        <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+                          d ? "via-white/20" : "via-black/10"
+                        } to-transparent pointer-events-none`} />
 
                         {/* NEW badge */}
                         <div className="absolute top-3 left-3 z-10">
@@ -511,13 +539,20 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       whileTap={{ scale: 0.97 }}
                       onClick={() => !isBooked && !isSold && setSelectedProduct(p)}
                       className={`
-                        bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl rounded-3xl p-4 flex gap-3.5 cursor-pointer
-                        relative overflow-hidden transition-all group hover:bg-white/[0.08] hover:border-white/20
+                        rounded-3xl p-4 flex gap-3.5 cursor-pointer border
+                        relative overflow-hidden transition-all group
+                        ${
+                          d
+                            ? "bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20 shadow-xl"
+                            : "bg-white border-black/10 hover:border-black/20 shadow-sm hover:shadow-md"
+                        }
                         ${isBooked || isSold ? "opacity-50" : ""}
                       `}
                     >
                       {/* Glass Edge highlight */}
-                      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                      <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${
+                        d ? "via-white/20" : "via-black/10"
+                      } to-transparent pointer-events-none`} />
 
                       {/* Phone image */}
                       <div
@@ -656,21 +691,21 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
             >
               {isAuthLoading ? (
                 /* ── Skeleton while syncing silently with Supabase ── */
-                <div className="w-full rounded-3xl p-6 bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative overflow-hidden flex flex-col items-center">
-                  <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
-                  <div className="w-20 h-20 rounded-full bg-white/10 animate-pulse mb-4" />
-                  <div className="w-36 h-5 rounded-xl bg-white/10 animate-pulse mb-2" />
-                  <div className="w-28 h-3.5 rounded-lg bg-white/5 animate-pulse mb-6" />
+                <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center`}>
+                  <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
+                  <div className={`w-20 h-20 rounded-full ${d ? "bg-white/10" : "bg-black/10"} animate-pulse mb-4`} />
+                  <div className={`w-36 h-5 rounded-xl ${d ? "bg-white/10" : "bg-black/10"} animate-pulse mb-2`} />
+                  <div className={`w-28 h-3.5 rounded-lg ${d ? "bg-white/5" : "bg-black/5"} animate-pulse mb-6`} />
                   <div className="w-full grid grid-cols-2 gap-3 mb-5">
-                    <div className="h-16 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
-                    <div className="h-16 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+                    <div className={`h-16 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
+                    <div className={`h-16 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
                   </div>
-                  <div className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+                  <div className={`w-full h-12 rounded-2xl ${d ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"} border animate-pulse`} />
                 </div>
               ) : (
                 /* ── Verified Profile Card in Liquid Glass ── */
-                <div className="w-full rounded-3xl p-6 bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl relative overflow-hidden flex flex-col items-center">
-                  <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                <div className={`w-full rounded-3xl p-6 ${d ? "bg-white/5 border-white/10 shadow-xl" : "bg-white border-black/10 shadow-md"} backdrop-blur-lg border relative overflow-hidden flex flex-col items-center`}>
+                  <div className={`absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${d ? "via-white/25" : "via-black/10"} to-transparent pointer-events-none`} />
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#007AFF]/20 rounded-full blur-2xl pointer-events-none" />
 
                   {/* Avatar */}
@@ -692,7 +727,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   </div>
 
                   {/* Name and Username */}
-                  <h2 className="text-[19px] font-bold tracking-tight text-white flex items-center gap-1.5">
+                  <h2 className={`text-[19px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"} flex items-center gap-1.5`}>
                     <span>{authUser?.name || telegramUser?.firstName || (lang === "RU" ? "Пользователь" : "Foydalanuvchi")}</span>
                     {(authUser?.isPremium || telegramUser?.isPremium) && (
                       <span className="text-[10px] bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full shadow-sm">
@@ -700,13 +735,13 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       </span>
                     )}
                   </h2>
-                  <p className="text-[12px] text-white/50 mt-0.5 mb-2 font-mono">
+                  <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"} mt-0.5 mb-2 font-mono`}>
                     {telegramUser?.username ? `@${telegramUser.username}` : `ID: ${authUser?.telegramId || telegramUser?.telegramId || "—"}`}
                   </p>
 
                   {/* Phone Badge */}
                   {authUser?.phone && (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/80 text-[12px] font-mono mb-4 backdrop-blur-md">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${d ? "bg-white/5 border-white/10 text-white/80" : "bg-black/5 border-black/10 text-[#1C1C1E]/80"} text-[12px] font-mono mb-4 backdrop-blur-md`}>
                       <Phone size={12} className="text-[#34C759]" />
                       <span>{authUser.phone}</span>
                     </div>
@@ -714,18 +749,18 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
                   {/* Stats Row */}
                   <div className="w-full grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-left backdrop-blur-md">
-                      <div className="flex items-center gap-1.5 text-white/50 text-[11px] mb-1 font-medium">
+                    <div className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md`}>
+                      <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
                         <Clock size={12} className="text-[#007AFF]" />
                         <span>{lang === "RU" ? "Брони" : "Bandlovlar"}</span>
                       </div>
-                      <p className="text-[17px] font-extrabold text-white">
+                      <p className={`text-[17px] font-extrabold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
                         {authUser?.bookings?.length || 0}
                       </p>
                     </div>
 
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-left backdrop-blur-md">
-                      <div className="flex items-center gap-1.5 text-white/50 text-[11px] mb-1 font-medium">
+                    <div className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md`}>
+                      <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
                         <ShieldCheck size={12} className="text-[#34C759]" />
                         <span>{lang === "RU" ? "Статус" : "Status"}</span>
                       </div>
@@ -739,7 +774,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                   {authUser?.bookings && authUser.bookings.length > 0 && (
                     <div className="w-full mb-4">
                       <div className="text-left mb-2 px-1">
-                        <h4 className="text-[12px] font-bold uppercase tracking-wider text-white/40">
+                        <h4 className={`text-[12px] font-bold uppercase tracking-wider ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                           {lang === "RU" ? "История броней" : "Bandlovlar tarixi"}
                         </h4>
                       </div>
@@ -747,13 +782,13 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                         {authUser.bookings.slice(0, 3).map((b: any) => (
                           <div
                             key={b.id}
-                            className="bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center justify-between text-left"
+                            className={`${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 flex items-center justify-between text-left`}
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="text-[13px] font-semibold text-white truncate">
+                              <p className={`text-[13px] font-semibold ${d ? "text-white" : "text-[#1C1C1E]"} truncate`}>
                                 {b.usedProduct?.title || b.variant?.template?.title || "iPhone"}
                               </p>
-                              <p className="text-[11px] text-white/50">
+                              <p className={`text-[11px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
                                 {new Date(b.createdAt).toLocaleDateString(lang === "RU" ? "ru-RU" : "uz-UZ")}
                               </p>
                             </div>
@@ -777,7 +812,11 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                     href="https://t.me/techstore_support"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-[13px] font-bold flex items-center justify-center gap-2 transition-all shadow-md backdrop-blur-md"
+                    className={`w-full py-3.5 rounded-2xl ${
+                      d
+                        ? "bg-white/10 hover:bg-white/15 border-white/15 text-white"
+                        : "bg-black/5 hover:bg-black/10 border-black/10 text-[#1C1C1E]"
+                    } border text-[13px] font-bold flex items-center justify-center gap-2 transition-all shadow-md backdrop-blur-md`}
                   >
                     <MessageCircle size={16} className="text-[#007AFF]" />
                     {lang === "RU" ? "Поддержка в Telegram" : "Telegram qo'llab-quvvatlash"}

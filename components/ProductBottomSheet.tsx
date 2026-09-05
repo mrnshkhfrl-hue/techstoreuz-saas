@@ -235,7 +235,8 @@ export default function ProductBottomSheet({
               fixed bottom-0 left-0 right-0
               mx-auto w-full max-w-[430px] z-[90]
               rounded-t-3xl overflow-hidden
-              bg-[#0a0a0f]/90 backdrop-blur-2xl border-t border-x border-white/10 shadow-2xl
+              ${d ? "bg-[#0a0a0f]/95 border-white/10 text-white" : "bg-white/95 border-black/10 text-[#1C1C1E]"}
+              backdrop-blur-2xl border-t border-x shadow-2xl
             `}
             style={{
               maxHeight: "92vh",
@@ -492,7 +493,7 @@ export default function ProductBottomSheet({
               <div
                 className={`
                   sticky bottom-0 px-5 py-4
-                  ${d ? "bg-black/90 border-t border-white/[0.04]" : "bg-[#F2F2F7]/90 border-t border-black/[0.04]"}
+                  ${d ? "bg-[#0a0a0f]/95 border-t border-white/[0.08]" : "bg-white/95 border-t border-black/[0.08]"}
                   backdrop-blur-[80px] backdrop-saturate-200
                 `}
               >
@@ -536,7 +537,9 @@ export default function ProductBottomSheet({
                     transition-all
                     ${
                       isNew && !inStock
-                        ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
+                        ? d
+                          ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
+                          : "bg-black/5 text-[#1C1C1E]/20 border border-black/5 cursor-not-allowed"
                         : "bg-[#007AFF] hover:bg-[#0A84FF] text-white shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)]"
                     }
                   `}

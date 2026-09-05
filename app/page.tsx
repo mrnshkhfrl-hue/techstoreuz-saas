@@ -12,27 +12,34 @@ export default async function Page({
     ? resolvedSearchParams.shopId[0]
     : resolvedSearchParams?.shopId;
 
-  if (shopId) {
-    try {
-      const shop = await prisma.shop.findUnique({
-        where: { id: shopId },
-        include: {
-          newProducts: {
-            include: { variants: true },
+  try {
+    const shop = shopId
+      ? await prisma.shop.findUnique({
+          where: { id: shopId },
+          include: {
+            newProducts: {
+              include: { variants: true },
+            },
+            usedProducts: true,
           },
-          usedProducts: true,
-        },
-      });
+        })
+      : await prisma.shop.findFirst({
+          include: {
+            newProducts: {
+              include: { variants: true },
+            },
+            usedProducts: true,
+          },
+        });
 
-      if (shop) {
-        const serializedShop = JSON.parse(JSON.stringify(shop));
-        return <StorefrontClient shop={serializedShop} />;
-      }
-    } catch (error) {
-      console.error("[RootPage] Shop lookup error:", error);
+    if (shop) {
+      const serializedShop = JSON.parse(JSON.stringify(shop));
+      return <StorefrontClient shop={serializedShop} />;
     }
+  } catch (error) {
+    console.error("[RootPage] Shop lookup error:", error);
   }
 
-  // If no shopId provided or shop is not found, render smart RootRouter with Telegram Owner check
+  // If no shop found, render smart RootRouter with Telegram Owner check
   return <RootRouter />;
 }

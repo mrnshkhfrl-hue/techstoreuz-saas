@@ -8,20 +8,20 @@
 
 /* ── Core Design Tokens ── */
 :root {
-  /* Surface — True Black Defaults */
-  --surface-primary: #000000;
-  --surface-secondary: #111113;
-  --surface-tertiary: #1C1C1E;
+  /* Surface — Light Mode */
+  --surface-primary: #F2F2F7;
+  --surface-secondary: #FFFFFF;
+  --surface-tertiary: #E5E5EA;
 
-  /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-bg-heavy: rgba(20, 20, 22, 0.7);
-  --glass-bg-sheet: rgba(10, 10, 12, 0.92);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-highlight: rgba(255, 255, 255, 0.15);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
-  --glass-shadow-heavy: 0 12px 48px rgba(0, 0, 0, 0.7), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
-  --glass-shadow-float: 0 16px 64px rgba(0, 0, 0, 0.8);
+  /* Glass — Light Mode */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.92);
+  --glass-bg-sheet: rgba(255, 255, 255, 0.96);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-highlight: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
+  --glass-shadow-heavy: 0 12px 48px rgba(0, 0, 0, 0.08), inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
+  --glass-shadow-float: 0 16px 64px rgba(0, 0, 0, 0.12);
 
   /* iOS System Colors */
   --system-blue: #007AFF;
@@ -31,10 +31,10 @@
   --system-yellow: #FFCC00;
   --system-teal: #5AC8FA;
 
-  /* Text */
-  --text-primary: #FFFFFF;
-  --text-secondary: rgba(235, 235, 245, 0.6);
-  --text-tertiary: rgba(235, 235, 245, 0.3);
+  /* Text — Light Mode */
+  --text-primary: #1C1C1E;
+  --text-secondary: rgba(60, 60, 67, 0.6);
+  --text-tertiary: rgba(60, 60, 67, 0.3);
 
   /* Radii — Squircle (continuous curves) */
   --radius-xs: 10px;
@@ -47,27 +47,27 @@
   --radius-pill: 980px;
 
   /* Blur */
-  --blur-glass: 60px;
-  --blur-heavy: 80px;
-  --blur-sheet: 80px;
+  --blur-glass: 40px;
+  --blur-heavy: 60px;
+  --blur-sheet: 60px;
 
   /* Telegram compatibility */
-  --tg-bg-color: #000000;
-  --tg-secondary-bg-color: #111113;
-  --tg-text-color: #FFFFFF;
-  --tg-hint-color: rgba(235, 235, 245, 0.6);
+  --tg-bg-color: #F2F2F7;
+  --tg-secondary-bg-color: #FFFFFF;
+  --tg-text-color: #1C1C1E;
+  --tg-hint-color: rgba(60, 60, 67, 0.6);
   --tg-link-color: #007AFF;
   --tg-button-color: #007AFF;
   --tg-button-text-color: #FFFFFF;
 }
 
 .dark {
-  /* Surface */
+  /* Surface — Dark Mode */
   --surface-primary: #000000;
   --surface-secondary: #111113;
   --surface-tertiary: #1C1C1E;
 
-  /* Glass */
+  /* Glass — Dark Mode */
   --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-bg-heavy: rgba(20, 20, 22, 0.7);
   --glass-bg-sheet: rgba(10, 10, 12, 0.92);
@@ -77,7 +77,7 @@
   --glass-shadow-heavy: 0 12px 48px rgba(0, 0, 0, 0.7), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
   --glass-shadow-float: 0 16px 64px rgba(0, 0, 0, 0.8);
 
-  /* Text */
+  /* Text — Dark Mode */
   --text-primary: #FFFFFF;
   --text-secondary: rgba(235, 235, 245, 0.6);
   --text-tertiary: rgba(235, 235, 245, 0.3);
@@ -99,7 +99,7 @@
 }
 
 html, body {
-  background-color: #07070b;
+  background-color: var(--surface-primary);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -107,6 +107,7 @@ html, body {
   user-select: none;
   overflow-x: hidden;
   min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* ── Scrollbar — invisible ── */
