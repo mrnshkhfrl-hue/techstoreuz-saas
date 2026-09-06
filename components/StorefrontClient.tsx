@@ -501,7 +501,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       >
                         <div className="w-full h-28 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent overflow-hidden">
                           <img
-                            src={getModelPhoto(p.title)}
+                            src={(() => { try { const imgs = p.images ? JSON.parse(p.images) : []; return imgs[0] || getModelPhoto(p.title); } catch { return getModelPhoto(p.title); } })()}
                             alt={p.title}
                             className="w-full h-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105"
                             onError={(e) => {
@@ -644,7 +644,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                           <div>
                             <div className="w-full h-24 rounded-2xl flex items-center justify-center mb-2 bg-gradient-to-b from-white/[0.02] to-transparent overflow-hidden">
                               <img
-                                src={getModelPhoto(p.title)}
+                                src={(() => { try { const imgs = p.images ? JSON.parse(p.images) : []; return imgs[0] || getModelPhoto(p.title); } catch { return getModelPhoto(p.title); } })()}
                                 alt={p.title}
                                 className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
                                 onError={(e) => {
@@ -702,7 +702,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                         >
                           <div className={`w-[76px] h-[92px] rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${d ? "bg-white/[0.02]" : "bg-black/[0.02]"}`}>
                             <img
-                              src={getModelPhoto(p.title)}
+                              src={(() => { try { const imgs = p.images ? JSON.parse(p.images) : []; return imgs[0] || getModelPhoto(p.title); } catch { return getModelPhoto(p.title); } })()}
                               alt={p.title}
                               className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
                               onError={(e) => {
@@ -894,6 +894,9 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       src={authUser?.photoUrl || telegramUser?.photoUrl}
                       alt={authUser?.name || "User"}
                       className="w-20 h-20 rounded-full object-cover border-2 border-white/20 shadow-lg"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#7928CA] flex items-center justify-center text-white text-2xl font-bold border-2 border-white/20 shadow-lg shadow-[#007AFF]/20">

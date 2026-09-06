@@ -100,6 +100,7 @@ export default function ProductBottomSheet({
   const [selectedStorage, setSelectedStorage] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSim, setSelectedSim] = useState("");
+  const [activeSlide, setActiveSlide] = useState(0);
 
   /* Cascading filtered options: color and sim depend on selected storage */
   const filteredColorOptions = useMemo(() => {
@@ -124,6 +125,7 @@ export default function ProductBottomSheet({
 
   /* Reset selections when product changes */
   useEffect(() => {
+    setActiveSlide(0);
     if (isNew && product) {
       setSelectedStorage(storageOptions[0] || "");
       setSelectedColor(colorOptions[0] || "");
@@ -277,22 +279,94 @@ export default function ProductBottomSheet({
                 </motion.button>
               </div>
 
-              {/* Phone illustration */}
-              <div className="flex justify-center px-5 pb-4">
+              {/* Product Image Gallery */}
+              <div className="px-5 pb-4">
                 <div
                   className={`
-                    w-48 h-52 rounded-glass flex items-center justify-center overflow-hidden
+                    w-full aspect-square rounded-glass flex items-center justify-center overflow-hidden
                     ${d ? "bg-gradient-to-b from-white/[0.03] to-white/[0.01]" : "bg-gradient-to-b from-black/[0.02] to-transparent"}
                   `}
                 >
-                  <img
-                    src={getModelPhoto(product?.title)}
-                    alt={product?.title || "Device"}
-                    className="w-full h-full object-contain p-2 drop-shadow-xl transition-transform duration-300"
-                    onError={(e) => {
-                      e.currentTarget.src = "/products/iphone15pro_1.webp";
-                    }}
-                  />
+                  {(() => {
+                    // Parse images JSON if available
+                    let productImages: string[] = [];
+                    try {
+                      if (product?.images) {
+                        const parsed = typeof product.images === "string" ? JSON.parse(product.images) : product.images;
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                          productImages = parsed;
+                        }
+                      }
+                    } catch {}
+
+                    if (productImages.length > 1) {
+                      // Multiple images — show swipeable dots indicator
+                      return (
+                        <div className="relative w-full h-full">
+                          <style>{`
+                            .bs-gallery { position: relative; width: 100%; height: 100%; overflow: hidden; }
+                            .bs-gallery-track { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; }
+                            .bs-gallery-track::-webkit-scrollbar { display: none; }
+                            .bs-gallery-slide { min-width: 100%; height: 100%; scroll-snap-align: start; flex-shrink: 0; }
+                          `}</style>
+                          <div className="bs-gallery">
+                            <div
+                              className="bs-gallery-track"
+                              id="bs-gallery-track"
+                              onScroll={(e) => {
+                                const el = e.currentTarget;
+                                if (el.clientWidth > 0) {
+                                  const idx = Math.round(el.scrollLeft / el.clientWidth);
+                                  if (idx !== activeSlide) setActiveSlide(idx);
+                                }
+                              }}
+                            >
+                              {productImages.map((img, idx) => (
+                                <div key={idx} className="bs-gallery-slide flex items-center justify-center">
+                                  <img
+                                    src={img}
+                                    alt={`${product?.title || "Device"} - ${idx + 1}`}
+                                    className="w-full h-full object-contain p-2 drop-shadow-xl select-none pointer-events-none"
+                                    onError={(e) => {
+                                      e.currentTarget.src = getModelPhoto(product?.title);
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            {/* Dot indicators */}
+                            <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-1.5 pointer-events-none">
+                              {productImages.map((_, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                                    idx === activeSlide
+                                      ? "bg-[#007AFF] w-4 shadow-sm"
+                                      : d
+                                        ? "bg-white/30 w-1.5"
+                                        : "bg-black/20 w-1.5"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Single image or no images — show model photo
+                    const imgSrc = productImages.length === 1 ? productImages[0] : getModelPhoto(product?.title);
+                    return (
+                      <img
+                        src={imgSrc}
+                        alt={product?.title || "Device"}
+                        className="w-full h-full object-contain p-2 drop-shadow-xl transition-transform duration-300"
+                        onError={(e) => {
+                          e.currentTarget.src = "/products/iphone15pro_1.webp";
+                        }}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -567,8 +641,10 @@ export default function ProductBottomSheet({
                   `}
                 >
                   <ShoppingCart size={18} />
-                  {isNew && !inStock
-                    ? lang === "RU" ? "Нет в наличии" : "Mavjud emas"
+                  {isNew
+                    ? !inStock
+                      ? lang === "RU" ? "Нет в наличии" : "Mavjud emas"
+                      : lang === "RU" ? "В корзину" : "Savatga"
                     : lang === "RU" ? "Забронировать" : "Band qilish"}
                 </motion.button>
               </div>

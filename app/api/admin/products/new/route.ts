@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { shopId, title, basePrice, variants } = body;
+    const { shopId, title, basePrice, variants, images } = body;
 
     if (!shopId || !title || basePrice === undefined || basePrice === null || isNaN(Number(basePrice))) {
       return NextResponse.json(
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
         shopId,
         title: String(title).trim(),
         basePrice: Number(basePrice),
+        images: images ? (typeof images === "string" ? images : JSON.stringify(images)) : null,
         variants: {
           create: variants.map((v: any) => ({
             color: String(v.color || "Space Black").trim(),

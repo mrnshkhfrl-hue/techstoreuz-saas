@@ -34,9 +34,32 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [needsPhone, setNeedsPhone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetchedPhotoUrl, setFetchedPhotoUrl] = useState<string | null>(null);
   const checkedIdRef = useRef<string | null>(null);
 
   const activeTgUser = tg.user || extractTelegramUser();
+
+  // Proactively fetch Telegram photo in background as soon as we know telegramId
+  useEffect(() => {
+    if (!activeTgUser?.telegramId) return;
+    const tid = activeTgUser.telegramId;
+    const cached = typeof window !== 'undefined' ? sessionStorage.getItem(`tg_photo_${tid}`) : null;
+    if (cached) {
+      setFetchedPhotoUrl(cached);
+      return;
+    }
+    fetch(`/api/auth/photo?telegramId=${tid}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d?.photoUrl) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(`tg_photo_${tid}`, d.photoUrl);
+          }
+          setFetchedPhotoUrl(d.photoUrl);
+        }
+      })
+      .catch(() => {});
+  }, [activeTgUser?.telegramId]);
 
   const checkUserExists = useCallback(async (tgUser: TelegramWebAppUser) => {
     try {
@@ -55,16 +78,47 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
       }
 
       const data = await res.json();
+
+      // Fetch Telegram profile photo via Bot API (background, non-blocking)
+      const fetchPhotoAsync = async (telegramId: number) => {
+        try {
+          // Check sessionStorage cache first
+          const cachedPhoto = typeof window !== 'undefined' ? sessionStorage.getItem(`tg_photo_${telegramId}`) : null;
+          if (cachedPhoto) return cachedPhoto;
+
+          const photoRes = await fetch(`/api/auth/photo?telegramId=${telegramId}`);
+          if (photoRes.ok) {
+            const photoData = await photoRes.json();
+            if (photoData.photoUrl) {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem(`tg_photo_${telegramId}`, photoData.photoUrl);
+              }
+              return photoData.photoUrl;
+            }
+          }
+        } catch {}
+        return null;
+      };
+
       if (data.exists && data.user && data.user.phone) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`tg_phone_${tgUser.telegramId}`, data.user.phone);
         }
-        setDbUser({
+        
+        const initialUser: DbUser = {
           ...data.user,
           photoUrl: tgUser.photoUrl || data.user.photoUrl,
           username: tgUser.username || data.user.username,
-        });
+        };
+        setDbUser(initialUser);
         setNeedsPhone(false);
+
+        // Fetch photo in background, update state when ready
+        fetchPhotoAsync(tgUser.telegramId).then(photoUrl => {
+          if (photoUrl) {
+            setDbUser(prev => prev ? { ...prev, photoUrl } : prev);
+          }
+        });
       } else if (cachedPhone) {
         // User has verified phone on this device before -> auto-sync with server!
         try {
@@ -82,12 +136,19 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
           });
           const syncData = await syncRes.json();
           if (syncData?.user) {
-            setDbUser({
+            const syncedUser: DbUser = {
               ...syncData.user,
               photoUrl: tgUser.photoUrl || syncData.user.photoUrl,
               username: tgUser.username || syncData.user.username,
-            });
+            };
+            setDbUser(syncedUser);
             setNeedsPhone(false);
+
+            fetchPhotoAsync(tgUser.telegramId).then(photoUrl => {
+              if (photoUrl) {
+                setDbUser(prev => prev ? { ...prev, photoUrl } : prev);
+              }
+            });
             return;
           }
         } catch {}
@@ -149,6 +210,20 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
             username: userToRegister.username || data.user.username,
           });
           setNeedsPhone(false);
+
+          // Fetch Telegram photo in background
+          fetch(`/api/auth/photo?telegramId=${userToRegister.telegramId}`)
+            .then(r => r.json())
+            .then(d => {
+              if (d?.photoUrl) {
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem(`tg_photo_${userToRegister.telegramId}`, d.photoUrl);
+                }
+                setDbUser(prev => prev ? { ...prev, photoUrl: d.photoUrl } : prev);
+              }
+            })
+            .catch(() => {});
+
           return { success: true };
         }
         return { success: false, error: 'Invalid response from server' };
@@ -178,9 +253,11 @@ export function useTelegramAuth(): UseTelegramAuthReturn {
     }
   }, [activeTgUser, checkUserExists]);
 
+  const resolvedPhoto = dbUser?.photoUrl || fetchedPhotoUrl || activeTgUser?.photoUrl || null;
+
   return {
-    user: dbUser,
-    telegramUser: activeTgUser,
+    user: dbUser ? { ...dbUser, photoUrl: resolvedPhoto } : null,
+    telegramUser: activeTgUser ? { ...activeTgUser, photoUrl: resolvedPhoto || undefined } : null,
     isLoading,
     needsPhone,
     error,

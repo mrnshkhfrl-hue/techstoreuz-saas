@@ -15,6 +15,7 @@ model User {
   name       String?
   address    String?
   isPremium  Boolean  @default(false)
+  photoUrl   String?
   
   ownedShops Shop[]      @relation("ShopOwner")
   adminIn    ShopAdmin[]
@@ -69,6 +70,7 @@ model NewProductTemplate {
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   title       String   
   basePrice   Float
+  images      String?
   variants    ProductVariant[]
 }
 
@@ -94,6 +96,7 @@ model UsedProduct {
   region        String   
   hasBox        Boolean  @default(false)
   defects       String?  
+  images        String?
   price         Float
   status        ItemStatus @default(AVAILABLE)
   

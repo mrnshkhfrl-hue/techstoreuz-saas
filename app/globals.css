@@ -192,6 +192,35 @@ html, body {
     transform: scale(0.96);
     box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
   }
+
+  /* ── GPU-Accelerated Bottom Navbar ── */
+  .navbar-gpu {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+  }
+
+  .navbar-pill-transition {
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+                width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+                background-color 0.15s ease,
+                box-shadow 0.15s ease;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+}
+
+/* ── Safe Area (iPhone X+) ── */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 @layer utilities {

@@ -407,92 +407,96 @@ export default function ProductDetail({ product, onClose, onAddToCart, lang, cur
                   {currentStock === 0 ? (currentLang === "ru" ? "Нет в наличии" : "Mavjud emas") : (currentLang === "ru" ? "В корзину" : "Savatga")}
                 </button>
                 
-                <button 
-                  onClick={() => {
-                    if (protectAction) protectAction(() => setShowBookingModal(true));
-                    else setShowBookingModal(true);
-                  }} 
-                  className="w-full py-4 liquid-btn text-gray-900 dark:text-white font-semibold text-[17px] tracking-tight"
-                >
-                  {currentLang === "ru" ? "Забронировать" : "Band qilish"}
-                </button>
+                {isUsed && (
+                  <button 
+                    onClick={() => {
+                      if (protectAction) protectAction(() => setShowBookingModal(true));
+                      else setShowBookingModal(true);
+                    }} 
+                    className="w-full py-4 liquid-btn text-gray-900 dark:text-white font-semibold text-[17px] tracking-tight"
+                  >
+                    {currentLang === "ru" ? "Забронировать" : "Band qilish"}
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
 
-          <AnimatePresence>
-            {showBookingModal && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowBookingModal(false)} />
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-[#1C1C1E] p-8 shadow-2xl rounded-[32px] text-center border border-gray-200 dark:border-white/10">
-                  <div className="w-16 h-16 bg-[#007AFF]/10 text-[#007AFF] rounded-2xl flex items-center justify-center mx-auto mb-5">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  </div>
-                  <h3 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3">
-                    {currentLang === "ru" ? "Подтверждение" : "Tasdiqlash"}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                    {currentLang === "ru" 
-                      ? `Вы уверены, что хотите забронировать ` 
-                      : `Siz ushbu mahsulotni band qilishga ishonchingiz komilmi: `}
-                    <span className="font-bold text-gray-900 dark:text-white">{product.name}</span>
-                    {currentLang === "ru" ? " на номер " : " raqamiga: "}
-                    <span className="font-bold text-[#007AFF]">{userPhone || bookingPhone}</span>?
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    <button 
-                      disabled={isBooking}
-                      onClick={async () => {
-                        if (isBooking) return;
-                        setIsBooking(true);
-                        const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-                        const platform = (window as any).Telegram?.WebApp?.platform || "unknown";
-                        try {
-                          const res = await fetch("/api/order", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              telegramId: tgUser?.id,
-                              username: tgUser?.username,
-                              fullName: tgUser ? `${tgUser.first_name} ${tgUser.last_name || ""}`.trim() : "Покупатель",
-                              phone: userPhone || bookingPhone,
-                              type: "RESERVATION",
-                              platform,
-                              items: [{ productId: product.id, quantity: 1, variantId: selectedVariant?.id, battery: product.battery, region: product.region }],
-                              total: currentPrice,
-                              installmentMonths: product.installmentAvailable ? installmentMonths : null
-                            })
-                          });
-                          if (res.ok) {
-                            showToast(currentLang === "ru" ? "Успешно забронировано!" : "Muvaffaqiyatli band qilindi!", "success");
-                            onReservationCreated?.();
-                            setTimeout(() => { setShowBookingModal(false); onClose(); }, 1500);
-                          } else {
-                            const err = await res.json().catch(() => null);
-                            showToast(err?.error || (currentLang === "ru" ? "Не удалось забронировать" : "Band qilib bo'lmadi"), "error");
+          {isUsed && (
+            <AnimatePresence>
+              {showBookingModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowBookingModal(false)} />
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-[#1C1C1E] p-8 shadow-2xl rounded-[32px] text-center border border-gray-200 dark:border-white/10">
+                    <div className="w-16 h-16 bg-[#007AFF]/10 text-[#007AFF] rounded-2xl flex items-center justify-center mx-auto mb-5">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </div>
+                    <h3 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3">
+                      {currentLang === "ru" ? "Подтверждение" : "Tasdiqlash"}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                      {currentLang === "ru" 
+                        ? `Вы уверены, что хотите забронировать ` 
+                        : `Siz ushbu mahsulotni band qilishga ishonchingiz komilmi: `}
+                      <span className="font-bold text-gray-900 dark:text-white">{product.name}</span>
+                      {currentLang === "ru" ? " на номер " : " raqamiga: "}
+                      <span className="font-bold text-[#007AFF]">{userPhone || bookingPhone}</span>?
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      <button 
+                        disabled={isBooking}
+                        onClick={async () => {
+                          if (isBooking) return;
+                          setIsBooking(true);
+                          const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+                          const platform = (window as any).Telegram?.WebApp?.platform || "unknown";
+                          try {
+                            const res = await fetch("/api/order", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                telegramId: tgUser?.id,
+                                username: tgUser?.username,
+                                fullName: tgUser ? `${tgUser.first_name} ${tgUser.last_name || ""}`.trim() : "Покупатель",
+                                phone: userPhone || bookingPhone,
+                                type: "RESERVATION",
+                                platform,
+                                items: [{ productId: product.id, quantity: 1, variantId: selectedVariant?.id, battery: product.battery, region: product.region }],
+                                total: currentPrice,
+                                installmentMonths: product.installmentAvailable ? installmentMonths : null
+                              })
+                            });
+                            if (res.ok) {
+                              showToast(currentLang === "ru" ? "Успешно забронировано!" : "Muvaffaqiyatli band qilindi!", "success");
+                              onReservationCreated?.();
+                              setTimeout(() => { setShowBookingModal(false); onClose(); }, 1500);
+                            } else {
+                              const err = await res.json().catch(() => null);
+                              showToast(err?.error || (currentLang === "ru" ? "Не удалось забронировать" : "Band qilib bo'lmadi"), "error");
+                              setIsBooking(false);
+                            }
+                          } catch (err) {
+                            showToast(currentLang === "ru" ? "Ошибка при бронировании" : "Band qilishda xatolik", "error");
                             setIsBooking(false);
                           }
-                        } catch (err) {
-                          showToast(currentLang === "ru" ? "Ошибка при бронировании" : "Band qilishda xatolik", "error");
-                          setIsBooking(false);
-                        }
-                      }}
-                      className="w-full py-4 bg-[#007AFF] text-white font-semibold text-[15px] rounded-[24px] tracking-tight shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
-                    >
-                      {isBooking ? "..." : (currentLang === "ru" ? "Да, забронировать" : "Ha, band qilish")}
-                    </button>
-                    <button 
-                      disabled={isBooking}
-                      onClick={() => setShowBookingModal(false)}
-                      className="w-full py-4 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white font-semibold text-[15px] rounded-[24px] tracking-tight transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
-                    >
-                      {currentLang === "ru" ? "Отмена" : "Bekor qilish"}
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
+                        }}
+                        className="w-full py-4 bg-[#007AFF] text-white font-semibold text-[15px] rounded-[24px] tracking-tight shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
+                      >
+                        {isBooking ? "..." : (currentLang === "ru" ? "Да, забронировать" : "Ha, band qilish")}
+                      </button>
+                      <button 
+                        disabled={isBooking}
+                        onClick={() => setShowBookingModal(false)}
+                        className="w-full py-4 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white font-semibold text-[15px] rounded-[24px] tracking-tight transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
+                      >
+                        {currentLang === "ru" ? "Отмена" : "Bekor qilish"}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+          )}
         </motion.div>
       )}
       <ImageViewer images={previewImages} initialIndex={previewIndex} onClose={() => setPreviewImages([])} />

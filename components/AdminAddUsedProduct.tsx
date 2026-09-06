@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import imageCompression from "browser-image-compression";
 import {
   PlusCircle,
   BatteryCharging,
@@ -13,6 +14,9 @@ import {
   CheckCircle2,
   Loader2,
   Smartphone,
+  Camera,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 
 type AdminAddUsedProductProps = {
@@ -28,6 +32,7 @@ const REGION_OPTIONS = [
   { value: "EU/A", label: "EU/A (Европа)" },
 ];
 
+const MAX_IMAGES = 6;
 const tapSpring = { type: "spring" as const, stiffness: 400, damping: 17 };
 
 export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps) {
@@ -42,6 +47,85 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Image upload state
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file selection & compression
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const remaining = MAX_IMAGES - imageFiles.length;
+    if (remaining <= 0) {
+      alert(`Максимум ${MAX_IMAGES} фото`);
+      return;
+    }
+
+    const toProcess = files.slice(0, remaining);
+    setIsUploading(true);
+
+    try {
+      const compressedFiles: File[] = [];
+      const previews: string[] = [];
+
+      for (const file of toProcess) {
+        // Compress image
+        const compressed = await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+          fileType: "image/webp",
+        });
+
+        compressedFiles.push(compressed);
+        previews.push(URL.createObjectURL(compressed));
+      }
+
+      setImageFiles(prev => [...prev, ...compressedFiles]);
+      setImagePreviews(prev => [...prev, ...previews]);
+    } catch (err) {
+      console.error("Image compression error:", err);
+      alert("Ошибка при сжатии изображения");
+    } finally {
+      setIsUploading(false);
+      // Reset input so the same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove an image
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Upload images to Supabase and get URLs
+  const uploadImages = async (): Promise<string[]> => {
+    if (imageFiles.length === 0) return [];
+
+    const formData = new FormData();
+    for (const file of imageFiles) {
+      formData.append("files", file);
+    }
+
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Ошибка загрузки фото");
+    }
+
+    const data = await res.json();
+    return data.urls || [];
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -54,6 +138,13 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
     setShowSuccess(false);
 
     try {
+      // 1. Upload images first
+      let imageUrls: string[] = [];
+      if (imageFiles.length > 0) {
+        imageUrls = await uploadImages();
+      }
+
+      // 2. Create product with image URLs
       const res = await fetch("/api/admin/products/used", {
         method: "POST",
         headers: {
@@ -67,6 +158,7 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
           hasBox,
           defects: defects.trim() || null,
           price: Number(price),
+          images: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         }),
       });
 
@@ -80,8 +172,11 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
         setHasBox(true);
         setDefects("");
         setPrice("");
+        // Cleanup image previews
+        imagePreviews.forEach(url => URL.revokeObjectURL(url));
+        setImageFiles([]);
+        setImagePreviews([]);
 
-        // Success banner
         setShowSuccess(true);
         router.refresh();
 
@@ -93,7 +188,7 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
       }
     } catch (err: any) {
       console.error("Error submitting used product:", err);
-      alert("Ошибка сети при отправке формы");
+      alert(err.message || "Ошибка сети при отправке формы");
     } finally {
       setIsLoading(false);
     }
@@ -137,6 +232,72 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Group 0: Photo Upload */}
+      <div className="p-4 rounded-[24px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] space-y-3">
+        <p className="text-[11px] font-bold text-white/30 uppercase tracking-wider flex items-center gap-1.5">
+          <Camera size={14} className="text-[#5AC8FA]" />
+          Фотографии ({imageFiles.length}/{MAX_IMAGES})
+        </p>
+
+        {/* Image Preview Grid */}
+        <div className="grid grid-cols-3 gap-2">
+          {imagePreviews.map((url, idx) => (
+            <div
+              key={idx}
+              className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group"
+            >
+              <img
+                src={url}
+                alt={`Фото ${idx + 1}`}
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(idx)}
+                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white hover:bg-[#FF3B30]/80 transition-colors"
+              >
+                <X size={12} />
+              </button>
+              <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[9px] text-white font-bold">
+                {idx + 1}
+              </div>
+            </div>
+          ))}
+
+          {/* Add Photo Button */}
+          {imageFiles.length < MAX_IMAGES && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex flex-col items-center justify-center gap-1.5 text-white/30 hover:text-white/50 hover:border-white/25 transition-all cursor-pointer"
+            >
+              {isUploading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <>
+                  <ImageIcon size={20} />
+                  <span className="text-[9px] font-bold">Добавить</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        <p className="text-[10px] text-white/20">
+          До {MAX_IMAGES} фото. JPG, PNG, WebP. Макс. 5MB каждое. Фото автоматически сжимаются.
+        </p>
+      </div>
 
       {/* Group 1: Basic Info (Title & Price) */}
       <div className="p-4 rounded-[24px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] space-y-4">
@@ -290,10 +451,10 @@ export default function AdminAddUsedProduct({ shopId }: AdminAddUsedProductProps
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 size={18} className="animate-spin" />
-              Создание товара...
+              {imageFiles.length > 0 ? "Загрузка фото..." : "Создание товара..."}
             </span>
           ) : (
-            "Опубликовать Б/У товар"
+            `Опубликовать Б/У товар${imageFiles.length > 0 ? ` (${imageFiles.length} фото)` : ""}`
           )}
         </motion.button>
       </div>

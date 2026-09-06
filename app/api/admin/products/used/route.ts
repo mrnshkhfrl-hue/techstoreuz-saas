@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { shopId, title, batteryHealth, region, hasBox, defects, price } = body;
+    const { shopId, title, batteryHealth, region, hasBox, defects, price, images } = body;
 
     if (!shopId || !title || price === undefined || price === null || isNaN(Number(price))) {
       return NextResponse.json(
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
         region: String(region || "LL/A").trim(),
         hasBox: Boolean(hasBox),
         defects: defects ? String(defects).trim() : null,
+        images: images || null,
         price: Number(price),
         status: "AVAILABLE",
       },

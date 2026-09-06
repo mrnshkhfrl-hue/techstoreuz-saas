@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import imageCompression from "browser-image-compression";
 import {
   PlusCircle,
   Smartphone,
@@ -15,6 +16,9 @@ import {
   Palette,
   Wifi,
   Package,
+  Upload,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 
 type AdminAddNewProductProps = {
@@ -53,6 +57,12 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
   const [basePrice, setBasePrice] = useState("");
   const [variants, setVariants] = useState<VariantDraft[]>([]);
 
+  /* ── Multi-image state (up to 6 photos) ── */
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   /* ── 2. Variant Builder Draft State ── */
   const [draftStorage, setDraftStorage] = useState("256GB");
   const [draftColor, setDraftColor] = useState("Natural Titanium");
@@ -62,6 +72,77 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
 
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Compress & add selected images
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const remainingSlots = 6 - imageFiles.length;
+    if (remainingSlots <= 0) {
+      alert("Максимум 6 фотографий");
+      return;
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+    setIsUploading(true);
+
+    try {
+      const compressedFiles: File[] = [];
+      const previews: string[] = [];
+
+      for (const file of filesToProcess) {
+        const compressed = await imageCompression(file, {
+          maxSizeMB: 0.8,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+          fileType: "image/webp",
+        });
+
+        compressedFiles.push(compressed);
+        previews.push(URL.createObjectURL(compressed));
+      }
+
+      setImageFiles(prev => [...prev, ...compressedFiles]);
+      setImagePreviews(prev => [...prev, ...previews]);
+    } catch (err) {
+      console.error("Image compression error:", err);
+      alert("Ошибка при сжатии изображения");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove an image
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Upload images to Supabase and get URLs
+  const uploadImages = async (): Promise<string[]> => {
+    if (imageFiles.length === 0) return [];
+
+    const formData = new FormData();
+    for (const file of imageFiles) {
+      formData.append("files", file);
+    }
+
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Ошибка загрузки фото");
+    }
+
+    const data = await res.json();
+    return data.urls || [];
+  };
 
   /* ── 3. Add Variant Handler ── */
   function handleAddVariant() {
@@ -106,6 +187,12 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
     setShowSuccess(false);
 
     try {
+      // 1. Upload images if any
+      let imageUrls: string[] = [];
+      if (imageFiles.length > 0) {
+        imageUrls = await uploadImages();
+      }
+
       const res = await fetch("/api/admin/products/new", {
         method: "POST",
         headers: {
@@ -115,6 +202,7 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
           shopId,
           title: title.trim(),
           basePrice: Number(basePrice),
+          images: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           variants: variants.map((v) => ({
             color: v.color,
             storage: v.storage,
@@ -133,6 +221,8 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
         setBasePrice("");
         setVariants([]);
         setDraftPrice("");
+        setImageFiles([]);
+        setImagePreviews([]);
         setShowSuccess(true);
         router.refresh();
 
@@ -232,6 +322,79 @@ export default function AdminAddNewProduct({ shopId }: AdminAddNewProductProps) 
               className="w-full bg-white/[0.02] border border-white/[0.08] rounded-glass-sm pl-10 pr-4 py-3 text-[14px] text-white placeholder:text-white/20 focus:outline-none focus:border-[#007AFF]/50 focus:bg-white/[0.03] transition-all font-bold"
             />
           </div>
+        </div>
+
+        {/* Photo Upload Section (up to 6 photos) */}
+        <div className="space-y-2">
+          <label className="text-[12px] font-bold text-white/60 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <ImageIcon size={14} className="text-[#007AFF]" />
+              Фотографии модели (до 6 шт)
+            </span>
+            <span className="text-[10px] text-white/30 font-normal">
+              {imagePreviews.length}/6 фото
+            </span>
+          </label>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            multiple
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
+          {/* Photo Previews Grid */}
+          <div className="grid grid-cols-3 gap-2">
+            {imagePreviews.map((preview, idx) => (
+              <div
+                key={idx}
+                className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-white/5 group"
+              >
+                <img
+                  src={preview}
+                  alt={`Фото ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(idx)}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+                {idx === 0 && (
+                  <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-[#007AFF] text-white px-1.5 py-0.5 rounded-md">
+                    Главное
+                  </span>
+                )}
+              </div>
+            ))}
+
+            {/* Add Photo Button (if < 6) */}
+            {imagePreviews.length < 6 && (
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-square rounded-2xl border-2 border-dashed border-white/15 hover:border-[#007AFF]/50 flex flex-col items-center justify-center gap-1 text-white/40 hover:text-[#007AFF] transition-all bg-white/[0.02] hover:bg-[#007AFF]/5 cursor-pointer"
+              >
+                {isUploading ? (
+                  <Loader2 size={20} className="animate-spin text-[#007AFF]" />
+                ) : (
+                  <>
+                    <Upload size={20} />
+                    <span className="text-[10px] font-semibold">Добавить</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-white/25">
+            Фото автоматически сжимаются для быстрой загрузки
+          </p>
         </div>
       </div>
 
