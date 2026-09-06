@@ -33,14 +33,16 @@ function BottomNavBar({
   onHaptic,
 }: BottomNavBarProps) {
   const navRef = useRef<HTMLElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
   const isScrubbingRef = useRef(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [hoveredTab, setHoveredTab] = useState<NavTab | null>(null);
   const hoveredTabRef = useRef<NavTab | null>(null);
   const activeTabRef = useRef<NavTab>(activeTab);
+  const navRectRef = useRef<{ left: number; width: number } | null>(null);
   const rafRef = useRef<number>(0);
-  const pillRef = useRef<HTMLDivElement>(null);
-  
+  const didDragRef = useRef(false);
+
   activeTabRef.current = activeTab;
 
   // Telegram Haptic Feedback helpers
@@ -63,51 +65,58 @@ function BottomNavBar({
     } catch {}
   }, []);
 
-  // Calculate tab key based on horizontal coordinate
-  const getTabFromX = useCallback(
-    (clientX: number): NavTab | null => {
-      if (!navRef.current) return null;
-      const rect = navRef.current.getBoundingClientRect();
-      if (rect.width <= 0) return null;
-      const relativeX = clientX - rect.left;
-      const clampedX = Math.max(0, Math.min(rect.width - 0.5, relativeX));
-      const tabWidth = rect.width / tabs.length;
-      const index = Math.min(tabs.length - 1, Math.max(0, Math.floor(clampedX / tabWidth)));
-      return tabs[index]?.key || null;
-    },
-    []
-  );
+  // Calculate tab key based on horizontal coordinate using cached rect (zero layout thrashing)
+  const getTabFromX = useCallback((clientX: number): NavTab | null => {
+    const rect = navRectRef.current;
+    if (!rect || rect.width <= 0) return null;
+    const relativeX = clientX - rect.left;
+    const clampedX = Math.max(0, Math.min(rect.width - 0.5, relativeX));
+    const tabWidth = rect.width / tabs.length;
+    const index = Math.min(tabs.length - 1, Math.max(0, Math.floor(clampedX / tabWidth)));
+    return tabs[index]?.key || null;
+  }, []);
 
-  // Animate pill position using transforms (fast during scrub, smooth spring at rest)
+  // Animate pill position using hardware transforms
   const animatePillToTab = useCallback((tabKey: NavTab, fast = false) => {
     if (!pillRef.current || !navRef.current) return;
     const idx = tabs.findIndex(t => t.key === tabKey);
     if (idx < 0) return;
-    
-    const navRect = navRef.current.getBoundingClientRect();
+
+    const navRect = navRectRef.current || navRef.current.getBoundingClientRect();
     const tabWidth = navRect.width / tabs.length;
-    const targetX = idx * tabWidth + 6; // 6px = px-1.5 padding
-    
-    pillRef.current.style.transition = fast 
-      ? "transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), width 0.08s ease" 
-      : "transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1)";
-    pillRef.current.style.transform = `translateX(${targetX}px)`;
-    pillRef.current.style.width = `${tabWidth - 12}px`;
+    const targetX = idx * tabWidth + 6; // 6px padding
+    const pillWidth = Math.max(30, tabWidth - 12);
+
+    pillRef.current.style.transition = fast
+      ? "transform 0.09s cubic-bezier(0.16, 1, 0.3, 1), width 0.09s ease"
+      : "transform 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), width 0.28s cubic-bezier(0.2, 0.9, 0.2, 1)";
+    pillRef.current.style.transform = `translate3d(${targetX}px, 0, 0)`;
+    pillRef.current.style.width = `${pillWidth}px`;
   }, []);
 
-  // Update pill position when activeTab changes (when not scrubbing)
+  // Update pill position on activeTab change
   useEffect(() => {
     if (!isScrubbingRef.current) {
-      animatePillToTab(activeTab);
+      if (navRef.current) {
+        const r = navRef.current.getBoundingClientRect();
+        navRectRef.current = { left: r.left, width: r.width };
+      }
+      animatePillToTab(activeTab, false);
     }
   }, [activeTab, animatePillToTab]);
 
-  // Handle window resize
+  // Window resize observer
   useEffect(() => {
-    const handleResize = () => animatePillToTab(hoveredTabRef.current || activeTab);
-    window.addEventListener("resize", handleResize);
-    requestAnimationFrame(() => animatePillToTab(activeTab));
-    return () => window.removeEventListener("resize", handleResize);
+    const updateRectAndPill = () => {
+      if (navRef.current) {
+        const r = navRef.current.getBoundingClientRect();
+        navRectRef.current = { left: r.left, width: r.width };
+        animatePillToTab(hoveredTabRef.current || activeTab, false);
+      }
+    };
+    window.addEventListener("resize", updateRectAndPill);
+    requestAnimationFrame(updateRectAndPill);
+    return () => window.removeEventListener("resize", updateRectAndPill);
   }, [activeTab, animatePillToTab]);
 
   const handleSelect = useCallback((key: NavTab) => {
@@ -117,7 +126,7 @@ function BottomNavBar({
     }
   }, [onTabChange, triggerHapticSelection]);
 
-  // Move handler for scrubbing: highlights tab and moves pill, but does NOT switch page!
+  // Move handler for scrubbing: highlights tab and moves pill at 120fps
   const processMove = useCallback((clientX: number) => {
     const targetTab = getTabFromX(clientX);
     if (targetTab && targetTab !== hoveredTabRef.current) {
@@ -128,57 +137,21 @@ function BottomNavBar({
     }
   }, [getTabFromX, animatePillToTab, triggerHapticSelection]);
 
-  // ── Touch Events (iOS Safari & Telegram WebApp) ──
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (!e.touches[0]) return;
-    isScrubbingRef.current = true;
-    setIsScrubbing(true);
-    const targetTab = getTabFromX(e.touches[0].clientX);
-    if (targetTab) {
-      hoveredTabRef.current = targetTab;
-      setHoveredTab(targetTab);
-      animatePillToTab(targetTab, true);
-      if (targetTab !== activeTabRef.current) {
-        triggerHapticSelection();
-      } else {
-        triggerHapticImpact("light");
-      }
-    }
-  }, [getTabFromX, animatePillToTab, triggerHapticSelection, triggerHapticImpact]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (!e.touches[0] || !isScrubbingRef.current) return;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const clientX = e.touches[0].clientX;
-    rafRef.current = requestAnimationFrame(() => {
-      processMove(clientX);
-    });
-  }, [processMove]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (isScrubbingRef.current) {
-      isScrubbingRef.current = false;
-      setIsScrubbing(false);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      const destinationTab = hoveredTabRef.current || activeTabRef.current;
-      hoveredTabRef.current = null;
-      setHoveredTab(null);
-      if (destinationTab !== activeTabRef.current) {
-        onTabChange(destinationTab);
-        triggerHapticImpact("medium");
-      }
-      animatePillToTab(destinationTab, false);
-    }
-  }, [onTabChange, triggerHapticImpact, animatePillToTab]);
-
-  // ── Pointer Events (Desktop mouse dragging & Android) ──
+  // ── Unified Pointer Events (works smoothly for touch, mouse, stylus) ──
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (navRef.current) {
+      const r = navRef.current.getBoundingClientRect();
+      navRectRef.current = { left: r.left, width: r.width };
+    }
     isScrubbingRef.current = true;
     setIsScrubbing(true);
+    didDragRef.current = false;
+
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
+
     const targetTab = getTabFromX(e.clientX);
     if (targetTab) {
       hoveredTabRef.current = targetTab;
@@ -194,6 +167,7 @@ function BottomNavBar({
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
     if (!isScrubbingRef.current) return;
+    didDragRef.current = true;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const clientX = e.clientX;
     rafRef.current = requestAnimationFrame(() => {
@@ -209,9 +183,11 @@ function BottomNavBar({
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {}
+
       const destinationTab = hoveredTabRef.current || activeTabRef.current;
       hoveredTabRef.current = null;
       setHoveredTab(null);
+
       if (destinationTab !== activeTabRef.current) {
         onTabChange(destinationTab);
         triggerHapticImpact("medium");
@@ -220,14 +196,11 @@ function BottomNavBar({
     }
   }, [onTabChange, triggerHapticImpact, animatePillToTab]);
 
-  // Cleanup RAF on unmount
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    handlePointerUp(e);
+  }, [handlePointerUp]);
 
-  // Cleanup RAF on unmount
+  // Cleanup RAF
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -236,55 +209,50 @@ function BottomNavBar({
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-50 pointer-events-none flex justify-center pb-safe">
-      <div className="w-full max-w-[430px] px-3 pb-3 pointer-events-auto">
+      <div className="w-full max-w-[430px] px-3.5 pb-3 pointer-events-auto">
         <nav
           ref={navRef}
-          style={{ 
-            touchAction: "none",
-            contain: "layout style",
-            willChange: "auto",
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          style={{
+            touchAction: "none",
+            contain: "layout style paint",
+            transform: "translateZ(0)",
+          }}
           className={`
-            navbar-gpu relative w-full h-[68px] rounded-[28px] px-1.5 flex items-center justify-between
-            select-none touch-none
+            relative w-full h-[66px] rounded-[28px] px-1.5 flex items-center justify-between
+            select-none cursor-pointer
             ${
               isDark
-                ? "bg-[#0a0a0f]/80 border border-white/[0.14] text-white shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
-                : "bg-white/85 border border-black/[0.08] text-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+                ? "bg-[#0b0c11]/80 border border-white/[0.12] text-white shadow-[0_12px_40px_rgba(0,0,0,0.65),inset_0_0.5px_0_rgba(255,255,255,0.12)]"
+                : "bg-white/85 border border-black/[0.08] text-[#1C1C1E] shadow-[0_12px_40px_rgba(0,0,0,0.09),inset_0_0.5px_0_rgba(255,255,255,0.8)]"
             }
-            backdrop-blur-2xl
-            ${isScrubbing ? "ring-2 ring-[#007AFF]/40 scale-[1.01]" : ""}
+            backdrop-blur-[45px] backdrop-saturate-[200%]
+            transition-colors duration-200
           `}
         >
-          {/* GPU-accelerated pill — positioned via transform */}
+          {/* Liquid Glass Pill Indicator */}
           <div
             ref={pillRef}
             className={`
-              absolute top-[7px] h-[54px] rounded-[22px] pointer-events-none
-              navbar-pill-transition
+              absolute top-[6px] h-[54px] rounded-[22px] pointer-events-none
               ${
                 isDark
                   ? isScrubbing
-                    ? "bg-white/[0.18] border border-white/[0.25] shadow-[0_0_20px_rgba(255,255,255,0.2),inset_0_1px_1px_rgba(255,255,255,0.6)]"
-                    : "bg-white/[0.12] border border-white/[0.15] shadow-inner"
+                    ? "bg-white/[0.16] border border-white/[0.22] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.45)]"
+                    : "bg-white/[0.11] border border-white/[0.14] shadow-[0_2px_12px_rgba(0,0,0,0.2),inset_0_0.5px_0.5px_rgba(255,255,255,0.25)]"
                   : isScrubbing
-                    ? "bg-black/[0.10] border border-black/[0.12] shadow-[0_0_16px_rgba(0,122,255,0.25),inset_0_1px_1px_rgba(255,255,255,0.8)]"
-                    : "bg-black/[0.06] border border-black/[0.08] shadow-inner"
+                    ? "bg-black/[0.09] border border-black/[0.10] shadow-[0_4px_16px_rgba(0,0,0,0.08),inset_0_1px_0.5px_rgba(255,255,255,0.8)]"
+                    : "bg-black/[0.05] border border-black/[0.06] shadow-sm"
               }
               backdrop-blur-3xl
             `}
-            style={{ willChange: "transform", backfaceVisibility: "hidden" }}
+            style={{ willChange: "transform, width", backfaceVisibility: "hidden" }}
           >
-            {/* Top specular liquid edge sheen */}
-            <div className="absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent rounded-full opacity-70" />
+            {/* Specular Liquid Edge Sheen */}
+            <div className="absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent rounded-full opacity-70" />
           </div>
 
           {tabs.map((tab) => {
@@ -296,14 +264,18 @@ function BottomNavBar({
             const label = lang === "RU" ? tab.labelRU : tab.labelUZ;
 
             return (
-              <button
+              <div
                 key={tab.key}
-                type="button"
-                onClick={() => handleSelect(tab.key)}
+                onClick={(e) => {
+                  // Fallback for simple clicks if not dragged
+                  if (!didDragRef.current) {
+                    handleSelect(tab.key);
+                  }
+                }}
                 className={`
                   relative flex-1 h-[54px] rounded-[22px] flex flex-col items-center justify-center
-                  outline-none cursor-pointer select-none
-                  ${isActive ? "font-bold" : "font-medium opacity-60"}
+                  outline-none cursor-pointer select-none transition-transform duration-150
+                  ${isActive ? "font-bold scale-[1.02]" : "font-medium opacity-65 hover:opacity-90"}
                 `}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
@@ -313,19 +285,19 @@ function BottomNavBar({
                     size={20}
                     className={
                       isActive
-                        ? isScrubbing
-                          ? "scale-125 text-[#007AFF] transition-transform duration-100"
-                          : "scale-110 text-[#007AFF] transition-transform duration-200"
+                        ? isDark
+                          ? "text-[#2997FF] drop-shadow-[0_2px_10px_rgba(41,151,255,0.4)]"
+                          : "text-[#0071E3] drop-shadow-[0_2px_8px_rgba(0,113,227,0.3)]"
                         : isDark
-                          ? "text-white/80 transition-transform duration-200"
-                          : "text-[#1C1C1E]/80 transition-transform duration-200"
+                          ? "text-white/80"
+                          : "text-[#1C1C1E]/80"
                     }
-                    style={{ willChange: "transform" }}
+                    style={{ transition: "color 0.15s ease, transform 0.15s ease" }}
                   />
 
                   {/* Badge */}
                   {badgeCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#007AFF] text-white text-[10px] font-black flex items-center justify-center shadow-md">
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-gradient-to-r from-[#0A84FF] to-[#0071E3] text-white text-[10px] font-black flex items-center justify-center shadow-md shadow-blue-500/30 border border-white/25 animate-in zoom-in duration-150">
                       {badgeCount > 9 ? "9+" : badgeCount}
                     </span>
                   )}
@@ -334,21 +306,21 @@ function BottomNavBar({
                 {/* Tab Label */}
                 <span
                   className={`
-                    relative z-10 text-[10px] tracking-tight mt-1 leading-none
+                    relative z-10 text-[10px] tracking-tight mt-1 leading-none transition-colors duration-150
                     ${
                       isActive
                         ? isDark
-                          ? "text-white"
-                          : "text-[#1C1C1E]"
+                          ? "text-white font-bold"
+                          : "text-[#1C1C1E] font-bold"
                         : isDark
-                          ? "text-white/60"
-                          : "text-[#1C1C1E]/60"
+                          ? "text-white/50"
+                          : "text-[#1C1C1E]/50"
                     }
                   `}
                 >
                   {label}
                 </span>
-              </button>
+              </div>
             );
           })}
         </nav>

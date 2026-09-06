@@ -129,6 +129,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isTradeInOpen, setIsTradeInOpen] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   /* ── Live Hooks (Auth & Cart) ── */
   const {
@@ -889,17 +890,15 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
                 {/* Avatar Photo */}
                 <div className="relative mb-3">
-                  {authUser?.photoUrl || telegramUser?.photoUrl ? (
+                  {!avatarFailed && (authUser?.photoUrl || telegramUser?.photoUrl) ? (
                     <img
-                      src={authUser?.photoUrl || telegramUser?.photoUrl}
+                      src={authUser?.photoUrl || telegramUser?.photoUrl || ""}
                       alt={authUser?.name || "User"}
                       className="w-20 h-20 rounded-full object-cover border-2 border-white/20 shadow-lg"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
+                      onError={() => setAvatarFailed(true)}
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#7928CA] flex items-center justify-center text-white text-2xl font-bold border-2 border-white/20 shadow-lg shadow-[#007AFF]/20">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#0A84FF] via-[#0071E3] to-[#7928CA] flex items-center justify-center text-white text-2xl font-black border-2 border-white/20 shadow-lg shadow-blue-500/20">
                       {(authUser?.name || telegramUser?.firstName || "U")[0].toUpperCase()}
                     </div>
                   )}
