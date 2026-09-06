@@ -23,26 +23,43 @@ async function sendMainMenu(ctx: any, lang: string) {
   const supportText = isUz ? "📞 Qo'llab-quvvatlash" : "📞 Поддержка";
   const langText = isUz ? "🌐 Tilni o'zgartirish" : "🌐 Сменить язык";
 
+  const webAppUrlWithLang = `${WEBAPP_URL}?lang=${lang.toUpperCase()}`;
   const keyboard = new Keyboard()
-    .webApp(btnText, WEBAPP_URL).row()
+    .webApp(btnText, webAppUrlWithLang).row()
     .text(aboutText).text(supportText).row()
     .text(langText).resized();
 
   await ctx.reply(text, { reply_markup: keyboard, parse_mode: "HTML" });
 }
 
-// Default language for new users (no `language` field in User model)
+// Default language for new users
 const DEFAULT_LANG = "uz";
 
-// In-memory language preference cache (since User model lacks language field)
+// Language preference cache backed by DB
 const langCache = new Map<string, string>();
 
-function getUserLang(tgId: string): string {
-  return langCache.get(tgId) || DEFAULT_LANG;
+async function getUserLang(tgId: string): Promise<string> {
+  const cached = langCache.get(tgId);
+  if (cached) return cached;
+  try {
+    const u = await prisma.user.findUnique({ where: { telegramId: tgId }, select: { address: true } });
+    if (u?.address === "uz" || u?.address === "ru") {
+      langCache.set(tgId, u.address);
+      return u.address;
+    }
+  } catch {}
+  return DEFAULT_LANG;
 }
 
-function setUserLang(tgId: string, lang: string) {
+async function setUserLang(tgId: string, lang: string) {
   langCache.set(tgId, lang);
+  try {
+    await prisma.user.upsert({
+      where: { telegramId: tgId },
+      update: { address: lang },
+      create: { telegramId: tgId, address: lang },
+    });
+  } catch {}
 }
 
 // Strict Registration Interceptor Middleware
@@ -61,7 +78,7 @@ bot.use(async (ctx, next) => {
   
   // If user is missing or has no phone number -> Enforce Registration Steps
   if (!user || !user.phone) {
-    const lang = getUserLang(tgId);
+    const lang = await getUserLang(tgId);
 
     // 1. Language choice buttons -> pass to hears handler
     if (text && ["🇺🇿 O'zbekcha", "🇷🇺 Русский"].includes(text)) {
@@ -135,7 +152,7 @@ bot.command("start", async (ctx) => {
     }
   });
 
-  const lang = getUserLang(tgId);
+  const lang = await getUserLang(tgId);
 
   const payload = ctx.match;
   if (payload === "bind_phone") {
@@ -163,8 +180,8 @@ bot.hears(["🇺🇿 O'zbekcha", "🇷🇺 Русский"], async (ctx) => {
   const lang = isUz ? "uz" : "ru";
   const tgId = String(ctx.from?.id);
   
-  // Store language preference in cache
-  setUserLang(tgId, lang);
+  // Store language preference in cache and DB
+  await setUserLang(tgId, lang);
 
   const user = await prisma.user.findUnique({ where: { telegramId: tgId } });
 

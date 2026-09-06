@@ -104,7 +104,28 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
   const [usedStorageFilter, setUsedStorageFilter] = useState("all");
 
   const [currency, setCurrency] = useState<"USD" | "UZS">("UZS");
-  const [lang, setLang] = useState<"RU" | "UZ">("RU");
+  const [lang, setLang] = useState<"RU" | "UZ">(() => {
+    if (typeof window !== "undefined") {
+      const urlParam = new URLSearchParams(window.location.search).get("lang")?.toUpperCase();
+      if (urlParam === "UZ" || urlParam === "RU") {
+        localStorage.setItem("tg_shop_lang", urlParam);
+        return urlParam as "RU" | "UZ";
+      }
+      const saved = localStorage.getItem("tg_shop_lang")?.toUpperCase();
+      if (saved === "UZ" || saved === "RU") {
+        return saved as "RU" | "UZ";
+      }
+    }
+    return "RU";
+  });
+
+  const handleLangChange = (newLang: "RU" | "UZ") => {
+    setLang(newLang);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tg_shop_lang", newLang);
+    }
+  };
+
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isTradeInOpen, setIsTradeInOpen] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
@@ -615,8 +636,9 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       {filteredUsedProducts.map((p: any) => (
                         <div
                           key={p.id}
-                          className={`p-3.5 rounded-3xl border flex flex-col justify-between transition-all group ${
-                            d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                          onClick={() => setSelectedProduct(p)}
+                          className={`p-3.5 rounded-3xl border flex flex-col justify-between transition-all group cursor-pointer hover:border-[#007AFF]/40 active:scale-[0.98] ${
+                            d ? "bg-white/5 border-white/10 hover:border-white/20 shadow-xl" : "bg-white border-black/10 hover:border-black/20 shadow-sm"
                           }`}
                         >
                           <div>
@@ -654,7 +676,10 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                             </span>
                             <button
                               disabled={isBookingLoading}
-                              onClick={() => handleBookUsedProduct(p)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBookUsedProduct(p);
+                              }}
                               className="w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/20"
                             >
                               <Clock size={12} />
@@ -670,8 +695,9 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                       {filteredUsedProducts.map((p: any) => (
                         <div
                           key={p.id}
-                          className={`p-4 rounded-3xl border flex gap-3.5 transition-all group ${
-                            d ? "bg-white/5 border-white/10" : "bg-white border-black/10 shadow-sm"
+                          onClick={() => setSelectedProduct(p)}
+                          className={`p-4 rounded-3xl border flex gap-3.5 transition-all group cursor-pointer hover:border-[#007AFF]/40 active:scale-[0.99] ${
+                            d ? "bg-white/5 border-white/10 hover:border-white/20 shadow-xl" : "bg-white border-black/10 hover:border-black/20 shadow-sm"
                           }`}
                         >
                           <div className={`w-[76px] h-[92px] rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${d ? "bg-white/[0.02]" : "bg-black/[0.02]"}`}>
@@ -714,7 +740,10 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                               </span>
                               <button
                                 disabled={isBookingLoading}
-                                onClick={() => handleBookUsedProduct(p)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleBookUsedProduct(p);
+                                }}
                                 className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/25"
                               >
                                 <Clock size={12} />
@@ -963,7 +992,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                 telegramUser={telegramUser}
                 isDark={d}
                 lang={lang}
-                onLangChange={setLang}
+                onLangChange={handleLangChange}
                 onThemeChange={(th) => setTheme(th)}
                 currentTheme={theme || "system"}
                 onNameUpdate={handleNameUpdate}

@@ -144,8 +144,10 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       const supportText = isUz ? "📞 Qo'llab-quvvatlash" : '📞 Поддержка';
       const langText = isUz ? "🌐 Tilni o'zgartirish" : '🌐 Сменить язык';
 
+      const localizedStoreUrl = `${storeUserUrl}&lang=${lang.toUpperCase()}`;
+
       const keyboardRows: any[] = [
-        [{ text: openBtnText, web_app: { url: storeUserUrl } }],
+        [{ text: openBtnText, web_app: { url: localizedStoreUrl } }],
       ];
 
       if (isOwner) {
@@ -180,10 +182,26 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       });
     };
 
-    // Detect language preference (cached or Telegram app language)
-    const userLanguageCode = from?.language_code?.toLowerCase() || '';
-    const fallbackLang: 'ru' | 'uz' = userLanguageCode.startsWith('ru') ? 'ru' : 'uz';
-    const currentLang = (userLangCache.get(tgId) || fallbackLang) as 'ru' | 'uz';
+    // Detect language preference (1. in-memory cache, 2. DB address column, 3. Telegram client language)
+    let currentLang = userLangCache.get(tgId) as 'ru' | 'uz' | undefined;
+    if (!currentLang) {
+      try {
+        const u = await prisma.user.findUnique({
+          where: { telegramId: tgId },
+          select: { address: true },
+        });
+        if (u?.address === 'uz' || u?.address === 'ru') {
+          currentLang = u.address as 'ru' | 'uz';
+          userLangCache.set(tgId, currentLang);
+        }
+      } catch (err) {
+        console.error('[Webhook] DB lang lookup error:', err);
+      }
+    }
+    if (!currentLang) {
+      const userLanguageCode = from?.language_code?.toLowerCase() || '';
+      currentLang = userLanguageCode.startsWith('uz') ? 'uz' : 'ru';
+    }
 
     // ── STEP A: Contact Shared (Phone Number Captured) ───────────────────
     if (contact && contact.phone_number) {
@@ -197,15 +215,16 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
       userStateCache.delete(tgId);
 
-      // Save user in DB
+      // Save user in DB with language
       try {
         await prisma.user.upsert({
           where: { telegramId: tgId },
-          update: { phone, name: finalName },
+          update: { phone, name: finalName, address: lang },
           create: {
             telegramId: tgId,
             phone,
             name: finalName,
+            address: lang,
           },
         });
       } catch (e) {
@@ -226,6 +245,17 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     if (text === "🇺🇿 O'zbekcha" || text === '🇷🇺 Русский') {
       const newLang: 'ru' | 'uz' = text.includes("O'zbekcha") ? 'uz' : 'ru';
       userLangCache.set(tgId, newLang);
+
+      // Persist chosen language to DB immediately!
+      try {
+        await prisma.user.upsert({
+          where: { telegramId: tgId },
+          update: { address: newLang },
+          create: { telegramId: tgId, address: newLang },
+        });
+      } catch (e) {
+        console.error('[Save Lang Error]', e);
+      }
 
       const isRegistered = await checkUserRegistrationFast(tgId);
 
@@ -258,7 +288,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     if (!isUserRegistered) {
       // 1. /start command -> Show Language Selection
       if (text.startsWith('/start')) {
-        userStateCache.set(tgId, { step: 'LANG', lang: fallbackLang });
+        userStateCache.set(tgId, { step: 'LANG', lang: currentLang });
 
         const welcomeText = `👋 Xush kelibsiz <b>${storeName}</b> do'koniga!\n\nДобро пожаловать в <b>${storeName}</b>!\n\nIltimos, tilni tanlang / Пожалуйста, выберите язык:`;
         await sendTg({
