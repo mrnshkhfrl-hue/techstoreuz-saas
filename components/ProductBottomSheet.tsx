@@ -636,7 +636,7 @@ export default function ProductBottomSheet({
                         ? d
                           ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
                           : "bg-black/5 text-[#1C1C1E]/20 border border-black/5 cursor-not-allowed"
-                        : "bg-[#007AFF] hover:bg-[#0A84FF] text-white shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)]"
+                        : "bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_20px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.35)] hover:brightness-110 active:scale-[0.98]"
                     }
                   `}
                 >

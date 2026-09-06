@@ -671,7 +671,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                           </div>
 
                           <div className="mt-2 pt-2 border-t border-white/5 flex flex-col gap-2">
-                            <span className="text-[13px] font-extrabold text-[#007AFF]">
+                            <span className={`text-[13px] font-black tracking-tight ${d ? "text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.12)]" : "text-[#1C1C1E]"}`}>
                               {fmtPrice(p.price, shop.currencyRate, currency)}
                             </span>
                             <button
@@ -680,7 +680,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                                 e.stopPropagation();
                                 handleBookUsedProduct(p);
                               }}
-                              className="w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/20"
+                              className="w-full py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-md transition-all bg-gradient-to-r from-[#0A84FF] to-[#0071E3] hover:from-[#2997FF] hover:to-[#0A84FF] text-white cursor-pointer shadow-blue-500/20 border border-white/20 active:scale-[0.97]"
                             >
                               <Clock size={12} />
                               <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
@@ -717,7 +717,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                                 {p.title}
                               </h4>
                               <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#007AFF]/10 text-[#007AFF]">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#0A84FF]/15 text-[#2997FF] border border-[#0A84FF]/20">
                                   💾 {extractStorage(p.title)}
                                 </span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759]">
@@ -735,7 +735,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                             </div>
 
                             <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
-                              <span className="text-[15px] font-extrabold text-[#007AFF]">
+                              <span className={`text-[15px] font-black tracking-tight ${d ? "text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.12)]" : "text-[#1C1C1E]"}`}>
                                 {fmtPrice(p.price, shop.currencyRate, currency)}
                               </span>
                               <button
@@ -744,7 +744,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                                   e.stopPropagation();
                                   handleBookUsedProduct(p);
                                 }}
-                                className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all bg-[#007AFF] text-white hover:bg-[#007AFF]/90 cursor-pointer shadow-[#007AFF]/25"
+                                className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md transition-all bg-gradient-to-r from-[#0A84FF] to-[#0071E3] hover:from-[#2997FF] hover:to-[#0A84FF] text-white cursor-pointer shadow-blue-500/25 border border-white/20 active:scale-[0.97]"
                               >
                                 <Clock size={12} />
                                 <span>{lang === "RU" ? "Забронировать" : "Band qilish"}</span>
@@ -937,14 +937,14 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                 <div className="w-full grid grid-cols-2 gap-3 mb-4">
                   <div
                     onClick={() => setNavTab("bookings")}
-                    className={`cursor-pointer ${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md hover:border-[#007AFF]/40 transition-all`}
+                    className={`cursor-pointer ${d ? "bg-white/5 border-white/10" : "bg-black/[0.03] border-black/10"} border rounded-2xl p-3 text-left backdrop-blur-md hover:border-[#2997FF]/40 transition-all`}
                   >
                     <div className={`flex items-center gap-1.5 ${d ? "text-white/50" : "text-[#1C1C1E]/50"} text-[11px] mb-1 font-medium`}>
-                      <Clock size={12} className="text-[#007AFF]" />
-                      <span>{lang === "RU" ? "Брони" : "Bandlovlar"}</span>
+                      <Clock size={12} className="text-[#2997FF]" />
+                      <span>{lang === "RU" ? "Брони (Б/У)" : "Bandlovlar (B/U)"}</span>
                     </div>
                     <p className={`text-[17px] font-extrabold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {authUser?.bookings?.length || 0}
+                      {authUser?.bookings?.filter((b: any) => Boolean(b.usedProductId || b.usedProduct))?.length || 0}
                     </p>
                   </div>
 
@@ -1014,7 +1014,11 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         isDark={d}
         lang={lang}
         cartCount={itemCount}
-        bookingsCount={authUser?.bookings?.length || 0}
+        bookingsCount={
+          authUser?.bookings?.filter(
+            (b: any) => Boolean(b.usedProductId || b.usedProduct) && b.status === "PENDING"
+          ).length || 0
+        }
       />
 
       {/* ═══════════════════════════════════════════════════

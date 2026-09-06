@@ -34,7 +34,10 @@ export default function BookingsTab({
   onNavigateToUsed,
 }: BookingsTabProps) {
   const d = isDark;
-  const bookings = user?.bookings || [];
+  // Bookings are strictly for USED devices. New devices are orders, not bookings!
+  const bookings = (user?.bookings || []).filter(
+    (b: any) => Boolean(b.usedProductId || b.usedProduct)
+  );
 
   const formatPrice = (priceUsd: number) => {
     if (currency === "UZS") {
@@ -94,7 +97,7 @@ export default function BookingsTab({
             border backdrop-blur-xl
           `}
         >
-          <div className="w-16 h-16 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/25 flex items-center justify-center text-[#007AFF]">
+          <div className="w-16 h-16 rounded-full bg-[#0A84FF]/15 border border-[#0A84FF]/25 flex items-center justify-center text-[#2997FF] shadow-lg shadow-blue-500/15">
             <Bookmark size={28} />
           </div>
           <div className="max-w-xs space-y-1">
@@ -109,7 +112,7 @@ export default function BookingsTab({
           </div>
           <button
             onClick={onNavigateToUsed}
-            className="px-5 py-2.5 rounded-xl bg-[#007AFF] text-white text-[13px] font-bold flex items-center gap-1.5 shadow-md shadow-[#007AFF]/25 hover:bg-[#007AFF]/90 transition-all cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0A84FF] to-[#0071E3] hover:from-[#2997FF] hover:to-[#0A84FF] text-white text-[13px] font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/25 border border-white/20 transition-all cursor-pointer active:scale-[0.97]"
           >
             <span>{lang === "RU" ? "Выбрать Б/У устройство" : "B/U qurilma tanlash"}</span>
             <ArrowRight size={15} />
@@ -176,7 +179,7 @@ export default function BookingsTab({
                         lang === "RU" ? "ru-RU" : "uz-UZ"
                       )}
                     </p>
-                    <p className="text-[14px] font-extrabold text-[#007AFF] mt-1">
+                    <p className={`text-[17px] font-black tracking-tight mt-1 ${d ? "text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.12)]" : "text-[#1C1C1E]"}`}>
                       {formatPrice(price)}
                     </p>
                   </div>
@@ -246,7 +249,7 @@ export default function BookingsTab({
                       href="https://t.me/mrnshkx"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#007AFF] font-bold text-[11px] flex items-center gap-1 hover:underline"
+                      className="text-[#2997FF] hover:text-[#0A84FF] font-semibold text-[11px] flex items-center gap-1 transition-colors"
                     >
                       <MessageCircle size={12} />
                       <span>{lang === "RU" ? "Спросить менеджера" : "Menejerdan so'rash"}</span>

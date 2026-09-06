@@ -11,6 +11,7 @@ import {
   MessageCircle,
   ArrowLeftRight,
   Sparkles,
+  RotateCcw,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
@@ -182,13 +183,36 @@ export default function TradeInCalculator({
     setResultCurrency(currency);
   }, [currency]);
 
-  // Load used attempts from localStorage
+  // Load used attempts from localStorage with daily auto-reset
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tradein_attempts_used");
-      if (saved) setAttemptsUsed(Number(saved));
+      const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const savedDate = localStorage.getItem("tradein_attempts_date");
+      if (savedDate !== todayStr) {
+        // Daily reset!
+        localStorage.setItem("tradein_attempts_date", todayStr);
+        localStorage.setItem("tradein_attempts_used", "0");
+        setAttemptsUsed(0);
+        setIsLimitExceeded(false);
+      } else {
+        const saved = Number(localStorage.getItem("tradein_attempts_used") || "0");
+        setAttemptsUsed(saved);
+        if (saved >= 5) {
+          setIsLimitExceeded(true);
+        }
+      }
     }
   }, []);
+
+  const handleResetAttempts = () => {
+    if (typeof window !== "undefined") {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      localStorage.setItem("tradein_attempts_date", todayStr);
+      localStorage.setItem("tradein_attempts_used", "0");
+    }
+    setAttemptsUsed(0);
+    setIsLimitExceeded(false);
+  };
 
   /* Derived */
   const models = MODELS[selectedBrand] || [];
@@ -213,7 +237,17 @@ export default function TradeInCalculator({
 
     // Check attempt limit when transitioning to step 5 (Result)
     if (step === 4) {
-      const currentSaved = typeof window !== "undefined" ? Number(localStorage.getItem("tradein_attempts_used") || "0") : attemptsUsed;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const savedDate = typeof window !== "undefined" ? localStorage.getItem("tradein_attempts_date") : todayStr;
+      let currentSaved = typeof window !== "undefined" ? Number(localStorage.getItem("tradein_attempts_used") || "0") : attemptsUsed;
+
+      if (savedDate !== todayStr) {
+        currentSaved = 0;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tradein_attempts_date", todayStr);
+        }
+      }
+
       if (currentSaved >= 5) {
         setIsLimitExceeded(true);
       } else {
@@ -221,6 +255,7 @@ export default function TradeInCalculator({
         setAttemptsUsed(nextAttempts);
         if (typeof window !== "undefined") {
           localStorage.setItem("tradein_attempts_used", String(nextAttempts));
+          localStorage.setItem("tradein_attempts_date", todayStr);
         }
       }
     }
@@ -345,14 +380,16 @@ export default function TradeInCalculator({
             <div className="px-5 pt-3 pb-1">
               <div className={`h-1 rounded-full overflow-hidden ${d ? "bg-white/[0.06]" : "bg-black/[0.06]"}`}>
                 <motion.div
-                  className="h-full bg-[#007AFF] rounded-full shadow-md shadow-[#007AFF]/20"
+                  className="h-full bg-gradient-to-r from-[#0A84FF] to-[#0071E3] rounded-full shadow-md shadow-blue-500/20"
                   initial={false}
                   animate={{ width: `${(step / 5) * 100}%` }}
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 />
               </div>
-              <p className={`text-[10px] font-medium mt-1.5 ${d ? "text-white/30" : "text-[#1C1C1E]/30"}`}>
-                {lang === "RU" ? `Шаг ${step} из 5` : `${step}-qadam / 5`}
+              <p className={`text-[10px] font-medium mt-1.5 ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
+                {step < 5
+                  ? (lang === "RU" ? `Шаг ${step} из 4` : `${step}-bosqich / 4`)
+                  : (lang === "RU" ? "Результат оценки" : "Baholash natijasi")}
               </p>
             </div>
 
@@ -606,30 +643,41 @@ export default function TradeInCalculator({
                         </motion.div>
 
                         <h2 className={`text-2xl font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                          {lang === "RU" ? "Лимит оценок исчерпан (5/5)" : "Baholash limiti tugadi (5/5)"}
+                          {lang === "RU" ? "Дневной лимит расчетов (5/5)" : "Kunlik hisoblash limiti (5/5)"}
                         </h2>
                         
-                        <p className={`text-[13px] max-w-[280px] leading-relaxed ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
+                        <p className={`text-[13px] max-w-[290px] leading-relaxed ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
                           {lang === "RU"
-                            ? "Вы использовали все 5 бесплатных расчетов Trade-In. Для персональной и точной оценки свяжитесь с нашим менеджером!"
-                            : "Siz barcha 5 ta bepul Trade-In hisobidan foydalandingiz. Qurilmani aniq baholash uchun menejerimizga murojaat qiling!"}
+                            ? "Вы использовали 5 бесплатных расчетов за сегодня. Лимит сбрасывается каждые 24 часа. Вы можете сбросить лимит прямо сейчас или написать менеджеру!"
+                            : "Siz bugungi 5 ta bepul hisobdan foydalandingiz. Limit har 24 soatda yangilanadi. Hozir qayta yangilashingiz yoki menejerga yozishingiz mumkin!"}
                         </p>
 
                         <div className="w-full space-y-2.5 pt-2">
+                          <button
+                            type="button"
+                            onClick={handleResetAttempts}
+                            className="w-full py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white shadow-lg shadow-blue-500/25 border border-white/20 active:scale-[0.98] transition-all cursor-pointer"
+                          >
+                            <RotateCcw size={16} />
+                            <span>{lang === "RU" ? "Сбросить лимит и рассчитать снова" : "Limitni yangilash va qayta hisoblash"}</span>
+                          </button>
+
                           <a
                             href="https://t.me/mrnshkx"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 shadow-lg shadow-[#007AFF]/25"
+                            className={`w-full py-3.5 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 border transition-all ${
+                              d ? "bg-white/5 hover:bg-white/10 border-white/10 text-white" : "bg-black/5 hover:bg-black/10 border-black/10 text-[#1C1C1E]"
+                            }`}
                           >
-                            <MessageCircle size={18} />
+                            <MessageCircle size={18} className="text-[#2997FF]" />
                             <span>{lang === "RU" ? "Написать менеджеру в Telegram" : "Telegram orqali menejerga yozish"}</span>
                           </a>
 
                           <a
                             href="tel:+998772859999"
-                            className={`w-full py-3.5 rounded-glass-btn text-[14px] font-bold flex items-center justify-center gap-2 border ${
-                              d ? "bg-white/5 border-white/10 text-white" : "bg-black/5 border-black/10 text-[#1C1C1E]"
+                            className={`w-full py-3 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-2 border ${
+                              d ? "bg-white/5 border-white/5 text-white/70" : "bg-black/5 border-black/5 text-[#1C1C1E]/70"
                             }`}
                           >
                             <span>+998 77 285-99-99</span>
@@ -643,13 +691,18 @@ export default function TradeInCalculator({
                           initial={{ scale: 0, rotate: -20 }}
                           animate={{ scale: 1, rotate: 0 }}
                           transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-                          className="w-20 h-20 rounded-glass bg-[#007AFF]/10 border border-[#007AFF]/15 flex items-center justify-center mb-6 shadow-xl shadow-[#007AFF]/10"
+                          className="w-20 h-20 rounded-2xl bg-[#0A84FF]/15 border border-[#0A84FF]/25 flex items-center justify-center mb-5 shadow-xl shadow-[#0A84FF]/15"
                         >
-                          <ArrowLeftRight size={32} className="text-[#007AFF]" />
+                          <ArrowLeftRight size={32} className="text-[#2997FF]" />
                         </motion.div>
 
-                        <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34C759]/15 border border-[#34C759]/25 text-[#34C759] text-[11px] font-bold">
-                          <span>{lang === "RU" ? `Оценка ${attemptsUsed} из 5` : `${attemptsUsed}/5 baholash`}</span>
+                        <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-bold">
+                          <Sparkles size={12} className="text-emerald-400" />
+                          <span>
+                            {lang === "RU"
+                              ? `Осталось сегодня: ${Math.max(0, 5 - attemptsUsed)} из 5 расчетов`
+                              : `Bugun qolgan hisoblar: ${Math.max(0, 5 - attemptsUsed)} / 5`}
+                          </span>
                         </div>
 
                         <h2 className={`text-2xl font-bold tracking-tight mb-2 ${d ? "text-white" : "text-[#1C1C1E]"}`}>
@@ -662,12 +715,12 @@ export default function TradeInCalculator({
                             : `Sizning ${brandName} ${modelName} (${selectedStorage}) uchun taklif qilamiz:`}
                         </p>
 
-                        <div className="liquid-glass glass-edge-highlight p-5 rounded-glass w-full mb-6 relative overflow-hidden text-left">
+                        <div className="liquid-glass glass-edge-highlight p-5 rounded-3xl w-full mb-5 relative overflow-hidden text-left border border-white/10">
                           {/* Subdued glow */}
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#007AFF]/10 rounded-full blur-2xl pointer-events-none" />
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#0A84FF]/10 rounded-full blur-2xl pointer-events-none" />
                           
                           <div className="flex items-center justify-between mb-2 relative z-10">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#007AFF]">
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#2997FF]">
                               {lang === "RU" ? "Скидка до" : "Chegirma"}
                             </p>
 
@@ -676,8 +729,8 @@ export default function TradeInCalculator({
                               <button
                                 type="button"
                                 onClick={() => setResultCurrency("UZS")}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                                  resultCurrency === "UZS" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-50 hover:opacity-80"
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  resultCurrency === "UZS" ? "bg-[#0071E3] text-white shadow-sm" : "opacity-50 hover:opacity-80"
                                 }`}
                               >
                                 СУМ
@@ -685,8 +738,8 @@ export default function TradeInCalculator({
                               <button
                                 type="button"
                                 onClick={() => setResultCurrency("USD")}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                                  resultCurrency === "USD" ? "bg-[#007AFF] text-white shadow-sm" : "opacity-50 hover:opacity-80"
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  resultCurrency === "USD" ? "bg-[#0071E3] text-white shadow-sm" : "opacity-50 hover:opacity-80"
                                 }`}
                               >
                                 USD
@@ -709,15 +762,33 @@ export default function TradeInCalculator({
                           </p>
                         </div>
 
-                        <a
-                          href="https://t.me/mrnshkx"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-glass-btn flex items-center justify-center gap-2 mb-3 shadow-lg shadow-[#007AFF]/25"
-                        >
-                          <MessageCircle size={18} />
-                          <span>{lang === "RU" ? "Связаться с менеджером (@mrnshkx)" : "Menejer bilan bog'lanish (@mrnshkx)"}</span>
-                        </a>
+                        <div className="w-full space-y-2">
+                          <a
+                            href="https://t.me/mrnshkx"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-4 btn-system-blue text-[15px] font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
+                          >
+                            <MessageCircle size={18} />
+                            <span>{lang === "RU" ? "Связаться с менеджером (@mrnshkx)" : "Menejer bilan bog'lanish (@mrnshkx)"}</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStep(1);
+                              setSelectedBrand("");
+                              setSelectedModel("");
+                              setSelectedStorage("");
+                            }}
+                            className={`w-full py-3 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                              d ? "bg-white/5 hover:bg-white/10 border-white/10 text-white/80" : "bg-black/5 hover:bg-black/10 border-black/10 text-[#1C1C1E]/80"
+                            }`}
+                          >
+                            <RotateCcw size={14} />
+                            <span>{lang === "RU" ? "Рассчитать другое устройство" : "Boshqa qurilmani hisoblash"}</span>
+                          </button>
+                        </div>
                       </>
                     )}
                   </motion.div>

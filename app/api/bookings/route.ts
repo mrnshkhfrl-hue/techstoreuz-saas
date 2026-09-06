@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       price: number;
       battery?: number;
       storage?: string;
+      isUsed: boolean;
     }> = [];
 
     // 2. Create Bookings in transaction
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
               title: usedExists.title,
               price: usedExists.price,
               battery: usedExists.batteryHealth,
+              isUsed: true,
             });
           }
         } else {
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
               title: `${variantExists.template.title} (${variantExists.storage})`,
               price: variantExists.price,
               storage: variantExists.storage,
+              isUsed: false,
             });
           }
         }
@@ -95,9 +98,17 @@ export async function POST(req: Request) {
     for (const adminId of adminChatIds) {
       for (const item of bookedItemsDetails) {
         try {
+          const isUsedOrder = item.isUsed;
+          const header = isUsedOrder
+            ? `📌 <b>НОВАЯ ЗАЯВКА НА БРОНЬ Б/У!</b>`
+            : `🛍️ <b>НОВЫЙ ЗАКАЗ (НОВОЕ УСТРОЙСТВО)!</b>`;
+          const footerAction = isUsedOrder
+            ? `⚡ <i>Позвоните клиенту для подтверждения брони Б/У!</i>`
+            : `⚡ <i>Позвоните клиенту для подтверждения заказа и доставки!</i>`;
+
           await sendMessage(
             adminId,
-            `📌 <b>НОВАЯ ЗАЯВКА НА БРОНЬ Б/У!</b>\n\n` +
+            `${header}\n\n` +
             `📱 <b>Устройство:</b> ${item.title}\n` +
             (item.battery ? `🔋 <b>АКБ:</b> ${item.battery}%\n` : "") +
             (item.storage ? `💾 <b>Память:</b> ${item.storage}\n` : "") +
@@ -105,8 +116,8 @@ export async function POST(req: Request) {
             `👤 <b>Клиент:</b> ${user.name || "Клиент"}\n` +
             `📞 <b>Телефон:</b> <code>${phone}</code>\n` +
             `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
-            `📍 <b>Самовывоз:</b> г. Самарканд, ул. Гульабад, 1\n\n` +
-            `⚡ <i>Позвоните клиенту для подтверждения наличия!</i>`,
+            `📍 <b>Филиал:</b> г. Самарканд, ул. Гульабад, 1\n\n` +
+            footerAction,
             {
               reply_markup: {
                 inline_keyboard: [

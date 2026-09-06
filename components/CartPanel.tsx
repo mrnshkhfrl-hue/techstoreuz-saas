@@ -124,12 +124,12 @@ export default function CartPanel({
         setCheckoutStep("success");
         clearCart();
       } else {
-        setErrorMessage(data.error || (lang === "RU" ? "Ошибка бронирования" : "Band qilishda xatolik"));
+        setErrorMessage(data.error || (lang === "RU" ? "Ошибка оформления заказа" : "Buyurtma rasmiylashtirishda xatolik"));
         setCheckoutStep("phone_input");
       }
     } catch (err: any) {
-      console.error("Booking error:", err);
-      setErrorMessage(lang === "RU" ? "Ошибка сети при отправке брони" : "Tarmoq xatosi yuz berdi");
+      console.error("Order error:", err);
+      setErrorMessage(lang === "RU" ? "Ошибка сети при оформлении заказа" : "Tarmoq xatosi yuz berdi");
       setCheckoutStep("phone_input");
     }
   }
@@ -309,14 +309,14 @@ export default function CartPanel({
                     ))}
                   </div>
 
-                  {/* Timer block */}
+                  {/* Order Guarantee block */}
                   <div className="px-4 pb-3">
-                    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#FF9500]/10 border border-[#FF9500]/20 text-[#FF9500]">
-                      <Clock size={15} />
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#34C759]/10 border border-[#34C759]/20 text-[#34C759]">
+                      <ShieldCheck size={15} />
                       <p className="text-[12px] font-medium">
                         {lang === "RU"
-                          ? "Бронь удерживается 24 часа"
-                          : "Band 24 soat davomida saqlanadi"}
+                          ? "Оригинальная техника Apple • Гарантия магазина"
+                          : "Apple original texnikasi • Do'kon kafolati"}
                       </p>
                     </div>
                   </div>
@@ -339,10 +339,10 @@ export default function CartPanel({
                       whileTap={{ scale: 0.96 }}
                       transition={tapSpring}
                       onClick={() => setCheckoutStep("phone_input")}
-                      className="w-full py-4 rounded-2xl bg-[#007AFF] hover:bg-[#0A84FF] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all"
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.3)] border border-white/20 transition-all cursor-pointer"
                     >
                       <ShoppingBag size={17} />
-                      {lang === "RU" ? "Оформить бронь" : "Bandni rasmiylashtirish"}
+                      {lang === "RU" ? "Оформить заказ" : "Buyurtma berish"}
                     </motion.button>
                   </div>
                 </motion.div>
@@ -374,7 +374,7 @@ export default function CartPanel({
                         {lang === "RU" ? "Контактный телефон" : "Aloqa telefoni"}
                       </h4>
                       <p className={`text-[11px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                        {lang === "RU" ? "Для подтверждения вашей брони" : "Bandlovni tasdiqlash uchun"}
+                        {lang === "RU" ? "Для подтверждения вашего заказа" : "Buyurtmangizni tasdiqlash uchun"}
                       </p>
                     </div>
                   </div>
@@ -389,7 +389,7 @@ export default function CartPanel({
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+998 90 123 45 67"
-                        className={`w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] font-semibold outline-none transition-all duration-200 border backdrop-blur-md focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/25 ${
+                        className={`w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] font-semibold outline-none transition-all duration-200 border backdrop-blur-md focus:border-[#0A84FF] focus:ring-2 focus:ring-[#0A84FF]/25 ${
                           d
                             ? "bg-white/5 border-white/10 text-white placeholder:text-white/30"
                             : "bg-black/[0.04] border-black/10 text-[#1C1C1E] placeholder:text-[#1C1C1E]/30"
@@ -408,9 +408,9 @@ export default function CartPanel({
                       whileTap={{ scale: 0.96 }}
                       transition={tapSpring}
                       type="submit"
-                      className="w-full py-4 rounded-2xl bg-[#007AFF] hover:bg-[#0A84FF] text-white font-bold text-[15px] flex items-center justify-center gap-2 mt-2 shadow-[0_4px_20px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all"
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white font-bold text-[15px] flex items-center justify-center gap-2 mt-2 shadow-[0_4px_24px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.3)] border border-white/20 transition-all cursor-pointer"
                     >
-                      {lang === "RU" ? "Подтвердить бронь" : "Bandni tasdiqlash"}
+                      {lang === "RU" ? "Подтвердить заказ" : "Buyurtmani tasdiqlash"}
                     </motion.button>
                   </form>
                 </motion.div>
@@ -425,9 +425,9 @@ export default function CartPanel({
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="px-4 py-12 flex flex-col items-center justify-center text-center space-y-3"
                 >
-                  <Loader2 size={36} className="text-[#007AFF] animate-spin" />
+                  <Loader2 size={36} className="text-[#0A84FF] animate-spin" />
                   <p className={`text-[14px] font-semibold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                    {lang === "RU" ? "Оформляем бронь..." : "Band rasmiylashtirilmoqda..."}
+                    {lang === "RU" ? "Оформляем заказ..." : "Buyurtma rasmiylashtirilmoqda..."}
                   </p>
                   <p className={`text-[12px] ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                     {lang === "RU" ? "Пожалуйста, подождите" : "Iltimos, kuting"}
@@ -456,12 +456,12 @@ export default function CartPanel({
 
                   <div className="space-y-1">
                     <h3 className={`text-[18px] font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                      {lang === "RU" ? "Заявка на бронь принята!" : "Band qilish arizasi qabul qilindi!"}
+                      {lang === "RU" ? "Заказ успешно оформлен!" : "Buyurtma muvaffaqiyatli qabul qilindi!"}
                     </h3>
                     <p className={`text-[13px] font-medium leading-relaxed max-w-[280px] ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
                       {lang === "RU"
-                        ? "Менеджер скоро свяжется с вами для подтверждения бронирования и пригласит в наш филиал."
-                        : "Menejer tez orada bandlovni tasdiqlash va filialimizga taklif qilish uchun siz bilan bog'lanadi."}
+                        ? "Менеджер скоро свяжется с вами для подтверждения деталей заказа и согласования доставки или самовывоза."
+                        : "Menejer tez orada buyurtma tafsilotlarini tasdiqlash va yetkazib berishni kelishish uchun siz bilan bog'lanadi."}
                     </p>
                     <p className={`text-[11px] pt-1 font-mono ${d ? "text-[#34C759]" : "text-[#34C759]"}`}>
                       📞 {phone}
