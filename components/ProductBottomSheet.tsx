@@ -307,11 +307,18 @@ export default function ProductBottomSheet({
                     </div>
                   )}
 
-                  {/* 24-hour hold badge */}
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-[#2997FF]/15 border border-[#2997FF]/30 text-[#2997FF] text-[10px] font-bold flex items-center gap-1 backdrop-blur-md">
-                    <Clock size={11} />
-                    <span>{lang === "RU" ? "Бронь 24 часа без предоплаты" : "Oldindan to'lovsiz 24 soat band"}</span>
-                  </div>
+                  {/* Status Badge: New device status vs 24h booking for used */}
+                  {isNew ? (
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold flex items-center gap-1 backdrop-blur-md">
+                      <Sparkles size={11} />
+                      <span>{lang === "RU" ? "Оригинал Apple • В наличии" : "Apple original • Mavjud"}</span>
+                    </div>
+                  ) : (
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-[#2997FF]/15 border border-[#2997FF]/30 text-[#2997FF] text-[10px] font-bold flex items-center gap-1 backdrop-blur-md">
+                      <Clock size={11} />
+                      <span>{lang === "RU" ? "Бронь 24 часа без предоплаты" : "Oldindan to'lovsiz 24 soat band"}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -557,15 +564,17 @@ export default function ProductBottomSheet({
                   <span className={`text-[11px] font-bold uppercase tracking-wider ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
                     📞 {lang === "RU" ? "Контакты менеджеров филиала" : "Filial menejerlari kontaktlari"}
                   </span>
-                  <a
-                    href={STORE_TELEGRAM}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] font-bold text-[#2997FF] hover:underline flex items-center gap-1"
-                  >
-                    <MessageCircle size={12} />
-                    <span>@Prostoreuzb</span>
-                  </a>
+                  {!isNew && (
+                    <a
+                      href={STORE_TELEGRAM}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-bold text-[#2997FF] hover:underline flex items-center gap-1"
+                    >
+                      <MessageCircle size={12} />
+                      <span>@Prostoreuzb</span>
+                    </a>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -625,29 +634,14 @@ export default function ProductBottomSheet({
                 </div>
 
                 {isNew ? (
-                  /* New devices: NO booking! Direct purchase in store / contact managers */
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={STORE_TELEGRAM}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-3.5 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_16px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.4)] hover:brightness-110 active:scale-[0.98]"
-                    >
-                      <MessageCircle size={16} />
-                      <span>{lang === "RU" ? "Купить в Telegram" : "Telegram orqali"}</span>
-                    </a>
-                    <a
-                      href={`tel:${STORE_MANAGERS[0]?.phone || "+998955241111"}`}
-                      className={`py-3.5 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all ${
-                        d
-                          ? "bg-white/10 hover:bg-white/15 text-white border border-white/15"
-                          : "bg-black/5 hover:bg-black/10 text-[#1C1C1E] border border-black/10"
-                      } active:scale-[0.98]`}
-                    >
-                      <Phone size={16} className="text-emerald-400" />
-                      <span>{lang === "RU" ? "Позвонить" : "Qo'ng'iroq"}</span>
-                    </a>
-                  </div>
+                  /* New devices: Call button ONLY, no TG, no booking! */
+                  <a
+                    href={`tel:${STORE_MANAGERS[0]?.phone || "+998955241111"}`}
+                    className="w-full py-4 rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_20px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.4)] hover:brightness-110 active:scale-[0.98]"
+                  >
+                    <Phone size={18} className="text-white" />
+                    <span>{lang === "RU" ? "Позвонить" : "Qo'ng'iroq qilish"}</span>
+                  </a>
                 ) : (
                   /* Used devices: 1-Click 24-Hour Booking */
                   <motion.button
