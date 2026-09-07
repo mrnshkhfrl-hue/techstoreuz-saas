@@ -584,7 +584,7 @@ export default function ProductBottomSheet({
                 </div>
               </div>
 
-              {/* ════════ STICKY BOTTOM BAR (RESERVATION ACTION) ════════ */}
+              {/* ════════ STICKY BOTTOM BAR ════════ */}
               <div
                 className={`
                   sticky bottom-0 px-5 py-4
@@ -595,7 +595,13 @@ export default function ProductBottomSheet({
                 <div className="flex items-end justify-between mb-3">
                   <div>
                     <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] mb-0.5 ${d ? "text-white/40" : "text-[#1C1C1E]/40"}`}>
-                      {lang === "RU" ? "Стоимость к бронированию" : "Band qilish narxi"}
+                      {isNew
+                        ? lang === "RU"
+                          ? "Стоимость устройства"
+                          : "Qurilma narxi"
+                        : lang === "RU"
+                        ? "Стоимость к бронированию"
+                        : "Band qilish narxi"}
                     </p>
                     <motion.p
                       key={currentPrice}
@@ -608,34 +614,61 @@ export default function ProductBottomSheet({
                   </div>
 
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                    {lang === "RU" ? "Без предоплаты" : "Oldindan to'lovsiz"}
+                    {isNew
+                      ? lang === "RU"
+                        ? "Новый • В наличии"
+                        : "Yangi • Mavjud"
+                      : lang === "RU"
+                      ? "Без предоплаты"
+                      : "Oldindan to'lovsiz"}
                   </span>
                 </div>
 
-                {/* Primary Booking Button */}
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  transition={tapSpring}
-                  disabled={isNew && !inStock || isBookingLoading}
-                  onClick={handleBookClick}
-                  className={`
-                    w-full py-4 rounded-2xl text-[15px] font-bold
-                    flex items-center justify-center gap-2
-                    transition-all cursor-pointer
-                    ${
-                      isNew && !inStock
-                        ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
-                        : "bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_20px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.4)] hover:brightness-110 active:scale-[0.98]"
-                    }
-                  `}
-                >
-                  <Bookmark size={18} />
-                  <span>
-                    {isBookingLoading
-                      ? (lang === "RU" ? "Бронируем..." : "Band qilinmoqda...")
-                      : (lang === "RU" ? "Забронировать на 24 часа" : "24 soatga band qilish")}
-                  </span>
-                </motion.button>
+                {isNew ? (
+                  /* New devices: NO booking! Direct purchase in store / contact managers */
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={STORE_TELEGRAM}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-3.5 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_16px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.4)] hover:brightness-110 active:scale-[0.98]"
+                    >
+                      <MessageCircle size={16} />
+                      <span>{lang === "RU" ? "Купить в Telegram" : "Telegram orqali"}</span>
+                    </a>
+                    <a
+                      href={`tel:${STORE_MANAGERS[0]?.phone || "+998955241111"}`}
+                      className={`py-3.5 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        d
+                          ? "bg-white/10 hover:bg-white/15 text-white border border-white/15"
+                          : "bg-black/5 hover:bg-black/10 text-[#1C1C1E] border border-black/10"
+                      } active:scale-[0.98]`}
+                    >
+                      <Phone size={16} className="text-emerald-400" />
+                      <span>{lang === "RU" ? "Позвонить" : "Qo'ng'iroq"}</span>
+                    </a>
+                  </div>
+                ) : (
+                  /* Used devices: 1-Click 24-Hour Booking */
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    transition={tapSpring}
+                    disabled={isBookingLoading}
+                    onClick={handleBookClick}
+                    className="w-full py-4 rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer bg-gradient-to-r from-[#0A84FF] via-[#0071E3] to-[#0058CA] text-white border border-white/20 shadow-[0_4px_20px_rgba(10,132,255,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.4)] hover:brightness-110 active:scale-[0.98]"
+                  >
+                    <Bookmark size={18} />
+                    <span>
+                      {isBookingLoading
+                        ? lang === "RU"
+                          ? "Бронируем..."
+                          : "Band qilinmoqda..."
+                        : lang === "RU"
+                        ? "Забронировать на 24 часа"
+                        : "24 soatga band qilish"}
+                    </span>
+                  </motion.button>
+                )}
               </div>
             </div>
           </motion.div>

@@ -34,6 +34,15 @@ export async function POST(req: Request) {
       isUsed: boolean;
     }> = [];
 
+    // Validate that only USED devices can be booked
+    const nonUsed = items.filter((it) => it.type !== "USED");
+    if (nonUsed.length > 0) {
+      return NextResponse.json(
+        { error: "Бронирование доступно только для Б/У устройств. Новые телефоны приобретаются в магазине." },
+        { status: 400 }
+      );
+    }
+
     // 2. Create Bookings in transaction with immediate CONFIRMED status
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
@@ -66,47 +75,6 @@ export async function POST(req: Request) {
               region: usedExists.region,
               hasBox: usedExists.hasBox,
               isUsed: true,
-            });
-          }
-        } else {
-          // New device booking
-          let variantExists = await tx.productVariant.findUnique({
-            where: { id: String(item.id) },
-            include: { template: true },
-          });
-
-          if (!variantExists) {
-            // Check if passed id was template id
-            const template = await tx.productTemplate.findUnique({
-              where: { id: String(item.id) },
-              include: { variants: true },
-            });
-            if (template && template.variants.length > 0) {
-              variantExists = await tx.productVariant.findUnique({
-                where: { id: template.variants[0].id },
-                include: { template: true },
-              });
-            }
-          }
-
-          await tx.booking.create({
-            data: {
-              shopId,
-              userId: user.id,
-              variantId: variantExists ? variantExists.id : null,
-              expiresAt,
-              status: "CONFIRMED", // Immediately confirmed for 24h
-            },
-          });
-
-          if (variantExists) {
-            bookedItemsDetails.push({
-              title: `${variantExists.template.title}`,
-              price: variantExists.price,
-              storage: variantExists.storage,
-              region: "ZP/A / LL/A",
-              hasBox: true,
-              isUsed: false,
             });
           }
         }

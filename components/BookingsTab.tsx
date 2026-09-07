@@ -87,8 +87,10 @@ export default function BookingsTab({
   onNavigateToUsed,
 }: BookingsTabProps) {
   const d = isDark;
-  // Support all booked items (both new and used)
-  const bookings = user?.bookings || [];
+  // Bookings are strictly for USED devices
+  const bookings = (user?.bookings || []).filter(
+    (b: any) => Boolean(b.usedProductId || b.usedProduct)
+  );
 
   const formatPrice = (priceUsd: number) => {
     if (currency === "UZS") {
@@ -141,8 +143,8 @@ export default function BookingsTab({
         </h2>
         <p className={`text-[12px] ${d ? "text-white/50" : "text-[#1C1C1E]/50"}`}>
           {lang === "RU"
-            ? "Устройства, закрепленные за вами на 24 часа без предоплаты"
-            : "Oldindan to'lovsiz 24 soatga nomingizga biriktirilgan qurilmalar"}
+            ? "Б/У устройства с гарантией, закрепленные за вами на 24 часа без предоплаты"
+            : "Oldindan to'lovsiz 24 soatga nomingizga biriktirilgan kafolatli B/U qurilmalar"}
         </p>
       </div>
 

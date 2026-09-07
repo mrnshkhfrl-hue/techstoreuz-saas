@@ -822,7 +822,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
                     <span>{lang === "RU" ? "Мои брони" : "Bandlovlar"}</span>
                   </div>
                   <p className={`text-[17px] font-extrabold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                    {authUser?.bookings?.length || 0}
+                    {authUser?.bookings?.filter((b: any) => Boolean(b.usedProductId || b.usedProduct))?.length || 0}
                   </p>
                 </div>
 
@@ -891,7 +891,9 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         onTabChange={setNavTab}
         isDark={d}
         lang={lang}
-        bookingsCount={authUser?.bookings?.length || 0}
+        bookingsCount={
+          authUser?.bookings?.filter((b: any) => Boolean(b.usedProductId || b.usedProduct))?.length || 0
+        }
       />
 
       {/* ═══════════════════════════════════════════════════
