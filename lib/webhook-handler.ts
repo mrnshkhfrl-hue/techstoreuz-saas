@@ -75,20 +75,48 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
     const tgId = String(userId);
 
-    // 1. SuperAdmin check (zero database latency)
-    const superAdminRaw =
+    // 1. Strict SuperAdmin check: ONLY SaaS Platform Creator (7949519588)
+    const superAdminRaw = (
       process.env.SUPERADMIN_IDS ||
       process.env.NEXT_PUBLIC_SUPERADMIN_IDS ||
-      process.env.ADMIN_CHAT_IDS ||
-      process.env.NEXT_PUBLIC_ADMIN_IDS ||
-      '7949519588,8603067434';
-
+      '7949519588'
+    );
     const superAdminIds = superAdminRaw
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const isOwner = superAdminIds.includes(tgId) || superAdminIds.includes(String(chatId));
+    const isSuperAdmin = (Boolean(tgId) && superAdminIds.includes(tgId)) || (Boolean(chatId) && superAdminIds.includes(String(chatId)));
+
+    // 2. Store Admin / Owner check: Tech Bozor Tashkent owner (8603067434) and managers
+    const storeAdminRaw = (
+      process.env.ADMIN_CHAT_IDS ||
+      process.env.NEXT_PUBLIC_ADMIN_IDS ||
+      '8603067434'
+    );
+    const storeAdminIds = storeAdminRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    let isStoreAdmin = (Boolean(tgId) && storeAdminIds.includes(tgId)) || (Boolean(chatId) && storeAdminIds.includes(String(chatId)));
+
+    if (!isStoreAdmin && !isSuperAdmin && tgId) {
+      try {
+        const u = await prisma.user.findUnique({
+          where: { telegramId: tgId },
+          select: { id: true },
+        });
+        if (u) {
+          const shopAdmin = await prisma.shopAdmin.findFirst({
+            where: { userId: u.id },
+          });
+          if (shopAdmin) isStoreAdmin = true;
+        }
+      } catch (e) {
+        // silent fallback
+      }
+    }
 
     const rawAppUrl =
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -101,7 +129,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     const storeUrl = appUrl;
     const storeName = process.env.NEXT_PUBLIC_STORE_NAME || 'Techstoreuz';
 
-    // 2. High-speed Telegram API sendMessage with strict AbortController timeout
+    // 3. High-speed Telegram API sendMessage with strict AbortController timeout
     const sendTg = async (payload: {
       text: string;
       reply_markup?: any;
@@ -135,6 +163,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
     const storeUserUrl = `${storeUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
     const superAdminUserUrl = `${superAdminUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
+    const adminStoreUrl = `${storeUrl}/admin?adminId=${tgId}`;
 
     // Helper: Build Main Menu
     const buildMainMenuKeyboard = (lang: string) => {
@@ -146,15 +175,27 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
       const localizedStoreUrl = `${storeUserUrl}&lang=${lang.toUpperCase()}`;
 
-      const keyboardRows: any[] = [
-        [{ text: openBtnText, web_app: { url: localizedStoreUrl } }],
-      ];
+      const keyboardRows: any[] = [];
 
-      if (isOwner) {
-        keyboardRows.unshift([
+      // A. ONLY SuperAdmin (7949519588) sees SaaS platform control button
+      if (isSuperAdmin) {
+        keyboardRows.push([
           { text: '👑 Панель управления (SaaS)', web_app: { url: superAdminUserUrl } },
         ]);
+        keyboardRows.push([
+          { text: '🛠 Панель магазина', web_app: { url: adminStoreUrl } },
+        ]);
+      } else if (isStoreAdmin) {
+        // B. Store Owner / Admin (8603067434 & store managers): ONLY store admin panel, NO SaaS button!
+        keyboardRows.push([
+          { text: isUz ? '🛠 Do\'kon boshqaruvi' : '🛠 Панель управления магазином', web_app: { url: adminStoreUrl } },
+        ]);
       }
+
+      // C. Public storefront button for everyone
+      keyboardRows.push([
+        { text: openBtnText, web_app: { url: localizedStoreUrl } },
+      ]);
 
       keyboardRows.push([
         { text: aboutText },
@@ -365,7 +406,13 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
 
     // ── STEP D: Registered User Actions ───────────────────────────────────
 
-    if (text.startsWith('/start') || text === '👑 Панель управления (SaaS)') {
+    if (
+      text.startsWith('/start') ||
+      text === '👑 Панель управления (SaaS)' ||
+      text === '🛠 Панель управления магазином' ||
+      text === "🛠 Do'kon boshqaruvi" ||
+      text === '🛠 Панель магазина'
+    ) {
       await sendMainMenu(currentLang);
       return NextResponse.json({ ok: true });
     }

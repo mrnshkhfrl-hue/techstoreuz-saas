@@ -20,23 +20,25 @@ export default function RootRouter() {
     setMounted(true);
   }, []);
 
-  // SuperAdmin check with fallbacks
-  const isSuperAdmin = useMemo(() => {
-    const rawId = user?.telegramId || (typeof window !== 'undefined' ? (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id : null);
-    if (!rawId) return false;
-    
-    const superAdminRaw = 
-      process.env.NEXT_PUBLIC_SUPERADMIN_IDS || 
-      process.env.NEXT_PUBLIC_ADMIN_IDS || 
-      "7949519588,8603067434";
-
-    const superAdminIds = superAdminRaw
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-
-    return superAdminIds.includes(String(rawId));
+  const rawId = useMemo(() => {
+    return user?.telegramId || (typeof window !== 'undefined' ? (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id : null);
   }, [user?.telegramId]);
+
+  // 1. Strict SuperAdmin check (SaaS Platform Owner: 7949519588)
+  const isSuperAdmin = useMemo(() => {
+    if (!rawId) return false;
+    const superAdminRaw = process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588";
+    const superAdminIds = superAdminRaw.split(',').map((id) => id.trim()).filter(Boolean);
+    return superAdminIds.includes(String(rawId));
+  }, [rawId]);
+
+  // 2. Store Admin check (Store Owner: 8603067434)
+  const isStoreAdmin = useMemo(() => {
+    if (!rawId) return false;
+    const adminRaw = process.env.NEXT_PUBLIC_ADMIN_IDS || "8603067434";
+    const adminIds = adminRaw.split(',').map((id) => id.trim()).filter(Boolean);
+    return adminIds.includes(String(rawId));
+  }, [rawId]);
 
   if (!mounted || !isReady) {
     return (
@@ -49,7 +51,7 @@ export default function RootRouter() {
     );
   }
 
-  // ── VIEW 1: SUPERADMIN / OWNER ──────────────────────────────────────────
+  // ── VIEW 1: SUPERADMIN (SAAS PLATFORM OWNER ONLY: 7949519588) ────────────
   if (isSuperAdmin) {
     return (
       <div className="relative max-w-[430px] mx-auto min-h-screen bg-black text-white flex flex-col justify-between p-6 sm:border-x border-white/5 overflow-hidden">
@@ -71,24 +73,22 @@ export default function RootRouter() {
         {/* Central Liquid Glass Card */}
         <div className="relative z-10 my-auto py-6">
           <div className="p-7 rounded-[32px] bg-white/[0.04] backdrop-blur-3xl border border-white/[0.12] shadow-[0_16px_48px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.15)] text-center relative overflow-hidden">
-            {/* Edge highlight reflection */}
             <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
             
-            {/* Glowing Shield Icon */}
             <div className="w-20 h-20 rounded-[26px] bg-gradient-to-b from-[#007AFF]/25 to-[#007AFF]/5 border border-[#007AFF]/40 flex items-center justify-center mx-auto mb-5 shadow-[0_0_35px_rgba(0,122,255,0.3)]">
               <ShieldCheck className="w-10 h-10 text-[#007AFF]" />
             </div>
 
             <div className="inline-block px-3 py-1 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 text-[#5AC8FA] text-[11px] font-bold tracking-wide uppercase mb-3">
-              Режим Владельца
+              Супер-Администратор SaaS
             </div>
 
             <h1 className="text-2xl font-black tracking-tight text-white mb-2">
-              Добро пожаловать, Владелец!
+              Управление SaaS
             </h1>
             
             <p className="text-white/60 text-sm leading-relaxed mb-6 font-normal">
-              Вы находитесь на платформе управления магазинами. Здесь вы можете создавать новые филиалы, загружать товары и управлять заказами.
+              Вы находитесь на платформе управления всеми магазинами. Здесь можно подключать боты, магазины и контролировать систему.
             </p>
 
             <div className="space-y-3">
@@ -98,8 +98,16 @@ export default function RootRouter() {
                 className="w-full py-4 px-6 rounded-[20px] bg-[#007AFF] hover:bg-[#0A84FF] active:scale-[0.98] text-white font-bold text-base flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all cursor-pointer"
               >
                 <Layers className="w-5 h-5" />
-                <span>Перейти в панель управления</span>
+                <span>Панель управления SaaS</span>
                 <ArrowRight className="w-4 h-4 ml-1 opacity-80" />
+              </Link>
+              <Link
+                href={`/admin?adminId=${rawId}`}
+                onClick={() => haptic?.impactOccurred('light')}
+                className="w-full py-3.5 px-6 rounded-[20px] bg-white/10 hover:bg-white/15 active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Store className="w-4 h-4 text-[#34C759]" />
+                <span>Открыть админку магазина</span>
               </Link>
             </div>
           </div>
@@ -115,7 +123,66 @@ export default function RootRouter() {
     );
   }
 
-  // ── VIEW 2: REGULAR CUSTOMER ───────────────────────────────────────────
+  // ── VIEW 2: STORE OWNER / ADMIN (8603067434 & STORE MANAGERS) ───────────
+  if (isStoreAdmin) {
+    return (
+      <div className="relative max-w-[430px] mx-auto min-h-screen bg-black text-white flex flex-col justify-between p-6 sm:border-x border-white/5 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-[#007AFF]/20 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="relative z-10 pt-4 flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-[#34C759] animate-pulse" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/80">Магазин</span>
+          </div>
+          {user?.username && (
+            <span className="text-xs text-white/50 font-medium">@{user.username}</span>
+          )}
+        </div>
+
+        <div className="relative z-10 my-auto py-6">
+          <div className="p-7 rounded-[32px] bg-white/[0.04] backdrop-blur-3xl border border-white/[0.12] shadow-[0_16px_48px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.15)] text-center relative overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            
+            <div className="w-20 h-20 rounded-[26px] bg-gradient-to-b from-[#007AFF]/25 to-[#007AFF]/5 border border-[#007AFF]/40 flex items-center justify-center mx-auto mb-5 shadow-[0_0_35px_rgba(0,122,255,0.3)]">
+              <Store className="w-10 h-10 text-[#007AFF]" />
+            </div>
+
+            <div className="inline-block px-3 py-1 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/30 text-[#5AC8FA] text-[11px] font-bold tracking-wide uppercase mb-3">
+              Управление магазином
+            </div>
+
+            <h1 className="text-2xl font-black tracking-tight text-white mb-2">
+              Добро пожаловать!
+            </h1>
+            
+            <p className="text-white/60 text-sm leading-relaxed mb-6 font-normal">
+              Перейдите в панель управления магазином для работы со складом б/у и новых товаров, бронями и клиентами.
+            </p>
+
+            <div className="space-y-3">
+              <Link
+                href={`/admin?adminId=${rawId}`}
+                onClick={() => haptic?.impactOccurred('medium')}
+                className="w-full py-4 px-6 rounded-[20px] bg-[#007AFF] hover:bg-[#0A84FF] active:scale-[0.98] text-white font-bold text-base flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(0,122,255,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all cursor-pointer"
+              >
+                <Layers className="w-5 h-5" />
+                <span>Панель управления магазином</span>
+                <ArrowRight className="w-4 h-4 ml-1 opacity-80" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 pb-4 text-center">
+          <p className="text-[11px] text-white/30 tracking-wide font-medium">
+            Techstoreuz • Панель магазина
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── VIEW 3: REGULAR CUSTOMER ───────────────────────────────────────────
   return (
     <div className="relative max-w-[430px] mx-auto min-h-screen bg-black text-white flex flex-col justify-between p-6 sm:border-x border-white/5 overflow-hidden">
       {/* Subtle ambient backdrop */}

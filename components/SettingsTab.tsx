@@ -59,8 +59,12 @@ export default function SettingsTab({
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const isAdmin = currentTgId ? adminIds.includes(String(currentTgId)) : false;
-  const isSuperAdmin = currentTgId === "7949519588" || currentTgId === process.env.NEXT_PUBLIC_SUPERADMIN_IDS;
+  const isAdmin = Boolean(currentTgId && adminIds.includes(String(currentTgId)));
+  const superAdminIds = (process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isSuperAdmin = Boolean(currentTgId && superAdminIds.includes(String(currentTgId)));
 
   const [nameInput, setNameInput] = useState(user?.name || telegramUser?.firstName || "");
   const [isSavingName, setIsSavingName] = useState(false);
