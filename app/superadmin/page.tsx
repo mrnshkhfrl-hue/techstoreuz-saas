@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Settings, Trash2, Edit2, Link as LinkIcon, Save, X } from "lucide-react";
 
+import SuperAdminAuthWrapper from "@/components/SuperAdminAuthWrapper";
+
 interface Shop {
   id: string;
   name: string;
@@ -16,7 +18,7 @@ interface Shop {
   };
 }
 
-export default function SuperAdminPage() {
+function SuperAdminContent() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -32,8 +34,12 @@ export default function SuperAdminPage() {
     try {
       const tg = (window as any).Telegram?.WebApp;
       const initData = tg?.initData || "";
+      const currentId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : "";
       const res = await fetch("/api/superadmin/shops", {
-        headers: { "X-Init-Data": initData }
+        headers: {
+          "X-Init-Data": initData,
+          "X-Admin-Id": currentId,
+        }
       });
       if (res.ok) {
         const data = await res.json();
@@ -208,5 +214,13 @@ export default function SuperAdminPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function SuperAdminPage() {
+  return (
+    <SuperAdminAuthWrapper>
+      <SuperAdminContent />
+    </SuperAdminAuthWrapper>
   );
 }

@@ -82,12 +82,32 @@ export async function POST(req: Request) {
     });
 
     // 3. Send instant Telegram notification to store admins
-    const adminChatIds = (process.env.ADMIN_CHAT_IDS || "8603067434,7949519588")
+    const targetAdmins = new Set<string>(["8603067434", "7949519588"]);
+    (process.env.ADMIN_CHAT_IDS || "")
       .split(",")
       .map((s) => s.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .forEach((id) => targetAdmins.add(id));
 
-    for (const adminId of adminChatIds) {
+    try {
+      const dbShop = await prisma.shop.findUnique({
+        where: { id: shopId },
+        include: {
+          owner: true,
+          admins: { include: { user: true } },
+        },
+      });
+      if (dbShop?.owner?.telegramId) targetAdmins.add(dbShop.owner.telegramId);
+      dbShop?.admins?.forEach((a) => {
+        if (a.user?.telegramId) targetAdmins.add(a.user.telegramId);
+      });
+    } catch (dbErr) {
+      console.warn("[Bookings] Could not query shop admins from DB:", dbErr);
+    }
+
+    const cleanPhone = String(phone).replace(/[^\d]/g, "");
+
+    for (const adminId of Array.from(targetAdmins)) {
       for (const item of bookedItemsDetails) {
         try {
           const initialDeposit = Math.round(item.price * 0.3);
@@ -115,25 +135,36 @@ export async function POST(req: Request) {
             `📝 Kerakli hujjatlar (pasport kopiya)\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
             `👤 <b>Mijoz:</b> ${user.name || "Клиент"}\n` +
-            `📞 <b>Telefon:</b> <code>${phone}</code>\n` +
+            `📞 <b>Telefon:</b> <code>+${cleanPhone || phone}</code>\n` +
             `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
             `📍 <b>Filial:</b> Samarqand sh., Gulobod ko'chasi, 1\n` +
             `⏰ <b>Muddati:</b> 24 soatga ushlab turiladi (Hold)`;
 
-          await sendMessage(
+          // Telegram inline buttons require https:// URLs (tel: and tg:// are rejected by Bot API)
+          const inlineKeyboardButtons: Array<Array<{ text: string; url: string }>> = [];
+          if (cleanPhone) {
+            inlineKeyboardButtons.push([
+              { text: "💬 Открыть чат в Telegram", url: `https://t.me/+${cleanPhone}` },
+            ]);
+          }
+
+          const sendResult = await sendMessage(
             adminId,
             messageText,
-            {
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: "📞 Позвонить клиенту", url: `tel:${phone}` },
-                    { text: "💬 Написать в TG", url: `tg://user?id=${telegramId}` },
-                  ],
-                ],
-              },
-            }
+            inlineKeyboardButtons.length > 0
+              ? {
+                  reply_markup: {
+                    inline_keyboard: inlineKeyboardButtons,
+                  },
+                }
+              : undefined
           );
+
+          if (!sendResult?.ok) {
+            console.error(`[Bookings] Telegram API error notifying admin ${adminId}:`, sendResult);
+          } else {
+            console.log(`[Bookings] Notified admin ${adminId} successfully (message_id: ${sendResult.result?.message_id})`);
+          }
         } catch (err) {
           console.error(`[Bookings] Failed to notify admin ${adminId}:`, err);
         }

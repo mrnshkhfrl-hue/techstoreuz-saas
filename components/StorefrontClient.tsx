@@ -25,6 +25,8 @@ import {
   MapPin,
   X,
   CreditCard,
+  Sliders,
+  ChevronRight,
 } from "lucide-react";
 import ProductBottomSheet from "@/components/ProductBottomSheet";
 import TradeInCalculator from "@/components/TradeInCalculator";
@@ -134,6 +136,33 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
     if (tid) return `/api/auth/photo?telegramId=${tid}&raw=1`;
     return "";
   }, [authUser?.photoUrl, telegramUser?.photoUrl, authUser?.telegramId, telegramUser?.telegramId]);
+
+  /* ── Admin Detection ── */
+  const currentTelegramId = useMemo(() => {
+    if (authUser?.telegramId) return String(authUser.telegramId);
+    if (telegramUser?.telegramId) return String(telegramUser.telegramId);
+    if (typeof window !== "undefined") {
+      const tgId = (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (tgId) return String(tgId);
+    }
+    return null;
+  }, [authUser?.telegramId, telegramUser?.telegramId]);
+
+  const isUserAdmin = useMemo(() => {
+    if (!currentTelegramId) return false;
+    const adminIds = [
+      process.env.NEXT_PUBLIC_ADMIN_IDS,
+      process.env.NEXT_PUBLIC_SUPERADMIN_IDS,
+      "8603067434",
+      "7949519588",
+    ]
+      .filter(Boolean)
+      .join(",")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return adminIds.includes(currentTelegramId);
+  }, [currentTelegramId]);
 
   /* ── Filtered New Products ── */
   const filteredNewProducts = useMemo(() => {
@@ -838,7 +867,29 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
               </div>
 
               {/* Quick Actions */}
-              <div className="w-full space-y-2">
+              <div className="w-full space-y-2.5">
+                {isUserAdmin && (
+                  <a
+                    href={`/admin?adminId=${currentTelegramId}`}
+                    className="w-full p-4 rounded-2xl bg-gradient-to-r from-[#007AFF]/25 via-[#5856D6]/20 to-[#007AFF]/25 hover:from-[#007AFF]/35 hover:to-[#007AFF]/35 border border-[#007AFF]/40 text-white font-bold text-[13px] flex items-center justify-between shadow-lg shadow-[#007AFF]/15 transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#007AFF] flex items-center justify-center text-white shadow-md shadow-[#007AFF]/40">
+                        <Sliders size={18} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[13px] font-extrabold text-white leading-tight">
+                          {lang === "RU" ? "Панель управления магазином" : "Do'kon boshqaruv paneli"}
+                        </p>
+                        <p className="text-[11px] text-[#2997FF] font-semibold mt-0.5">
+                          {lang === "RU" ? "Управление товарами и бронями" : "Mahsulotlar va bandlovlar"}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-[#2997FF] group-hover:translate-x-1 transition-transform" />
+                  </a>
+                )}
+
                 <button
                   onClick={() => setIsTradeInOpen(true)}
                   className={`w-full py-3 rounded-2xl ${

@@ -1,10 +1,10 @@
 import { prisma } from "./prisma";
 import crypto from "crypto";
 
-const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_IDS || process.env.ADMIN_CHAT_IDS || "")
+const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_IDS || process.env.ADMIN_CHAT_IDS || "8603067434,7949519588")
   .split(",").map(s => s.trim()).filter(Boolean);
 
-const SUPERADMIN_IDS = (process.env.SUPERADMIN_IDS || process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588")
+const SUPERADMIN_IDS = (process.env.SUPERADMIN_IDS || process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588,8603067434")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 export function validateInitData(initData: string): any {
@@ -20,7 +20,7 @@ export function validateInitData(initData: string): any {
       .map(([key, value]) => `${key}=${value}`)
       .join("\n");
 
-    const rawToken = process.env.TELEGRAM_BOT_TOKEN || "";
+    const rawToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "8426826305:AAFOLp579bWZpwGZuYJyo1KDy36DM8WD3c8";
     const cleanToken = rawToken.replace(/^["']|["']$/g, '').trim();
     const secretKey = crypto.createHmac("sha256", "WebAppData").update(cleanToken).digest();
     const computedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");

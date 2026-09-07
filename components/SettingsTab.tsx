@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   AlertCircle,
   ExternalLink,
+  Sliders,
+  Shield,
 } from "lucide-react";
 import { DbUser } from "@/hooks/useTelegramAuth";
 import { TelegramWebAppUser } from "@/hooks/useTelegram";
@@ -46,6 +48,19 @@ export default function SettingsTab({
   onShowToast,
 }: SettingsTabProps) {
   const currentTgId = user?.telegramId || (telegramUser?.telegramId ? String(telegramUser.telegramId) : "");
+  const adminIds = [
+    process.env.NEXT_PUBLIC_ADMIN_IDS,
+    process.env.NEXT_PUBLIC_SUPERADMIN_IDS,
+    "8603067434",
+    "7949519588",
+  ]
+    .filter(Boolean)
+    .join(",")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isAdmin = currentTgId ? adminIds.includes(String(currentTgId)) : false;
+
   const [nameInput, setNameInput] = useState(user?.name || telegramUser?.firstName || "");
   const [isSavingName, setIsSavingName] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -141,6 +156,49 @@ export default function SettingsTab({
             : "Profil, til va mavzularni boshqarish"}
         </p>
       </div>
+
+      {/* ── ADMIN ACCESS SECTION (Visible only to authorized store admins) ── */}
+      {isAdmin && (
+        <div
+          className={`p-4 rounded-[22px] ${
+            d
+              ? "bg-gradient-to-br from-[#007AFF]/20 via-[#5856D6]/15 to-transparent border-[#007AFF]/30"
+              : "bg-gradient-to-br from-[#007AFF]/10 via-[#5856D6]/10 to-transparent border-[#007AFF]/20"
+          } border backdrop-blur-xl space-y-3 shadow-lg shadow-[#007AFF]/10`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield size={16} className="text-[#007AFF]" />
+              <span className={`text-[13px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
+                {lang === "RU" ? "Управление магазином" : "Do'kon boshqaruvi"}
+              </span>
+            </div>
+            <span className="text-[10px] bg-[#007AFF]/20 text-[#007AFF] font-bold px-2 py-0.5 rounded-full border border-[#007AFF]/30 uppercase">
+              Admin
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <a
+              href={`/admin?adminId=${currentTgId}`}
+              className="py-2.5 px-3 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 text-white text-[12px] font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
+            >
+              <Sliders size={14} />
+              <span>{lang === "RU" ? "Панель управления" : "Boshqaruv paneli"}</span>
+            </a>
+
+            <a
+              href="/superadmin"
+              className={`py-2.5 px-3 rounded-xl ${
+                d ? "bg-white/10 hover:bg-white/15 text-white" : "bg-black/5 hover:bg-black/10 text-[#1C1C1E]"
+              } text-[12px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer`}
+            >
+              <Shield size={14} className="text-[#AF52DE]" />
+              <span>{lang === "RU" ? "Супер-Админ" : "Super-Admin"}</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* ── 1. CHANGE NAME ── */}
       <div

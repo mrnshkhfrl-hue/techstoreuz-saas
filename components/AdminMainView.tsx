@@ -44,9 +44,17 @@ export default function AdminMainView({ shop }: AdminMainViewProps) {
           COMPACT HEADER — Liquid Glass
           ═══════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 backdrop-blur-[80px] backdrop-saturate-200 bg-black/75 border-b border-white/[0.08] px-5 pt-4 pb-3 space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Панель магазина
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+            Панель управления
+          </p>
+          <a
+            href="/"
+            className="text-[11px] font-bold text-[#2997FF] hover:text-[#2997FF]/80 flex items-center gap-1 transition-colors"
+          >
+            ← В витрину
+          </a>
+        </div>
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-black text-white tracking-tight leading-none">
             {shop.name}

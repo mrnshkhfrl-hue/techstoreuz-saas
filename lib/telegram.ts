@@ -97,7 +97,13 @@ export function removeKeyboard(): object {
 
 // ─── Core API Calls ─────────────────────────────────────────────────────────
 
-const BOT_TOKEN = () => process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+const BOT_TOKEN = () => {
+  let token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+  if (!token) {
+    token = "8426826305:AAFOLp579bWZpwGZuYJyo1KDy36DM8WD3c8";
+  }
+  return token.replace(/^["']|["']$/g, "").trim();
+};
 
 async function callTelegramAPI(method: string, body: Record<string, any>): Promise<any> {
   const token = BOT_TOKEN();
