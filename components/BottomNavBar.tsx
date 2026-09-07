@@ -3,14 +3,13 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Home, ShoppingBag, Bookmark, User, Settings, LucideIcon } from "lucide-react";
 
-export type NavTab = "catalog" | "cart" | "bookings" | "profile" | "settings";
+export type NavTab = "catalog" | "bookings" | "profile" | "settings";
 
 interface BottomNavBarProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   isDark: boolean;
   lang: "RU" | "UZ";
-  cartCount?: number;
   bookingsCount?: number;
   onHaptic?: () => void;
 }
@@ -18,7 +17,6 @@ interface BottomNavBarProps {
 const tabs: { key: NavTab; labelRU: string; labelUZ: string; icon: LucideIcon }[] = [
   { key: "catalog", labelRU: "Каталог", labelUZ: "Katalog", icon: Home },
   { key: "bookings", labelRU: "Брони", labelUZ: "Bandlov", icon: Bookmark },
-  { key: "cart", labelRU: "Корзина", labelUZ: "Savat", icon: ShoppingBag },
   { key: "profile", labelRU: "Профиль", labelUZ: "Profil", icon: User },
   { key: "settings", labelRU: "Настройки", labelUZ: "Sozlamalar", icon: Settings },
 ];
@@ -28,7 +26,6 @@ function BottomNavBar({
   onTabChange,
   isDark,
   lang,
-  cartCount = 0,
   bookingsCount = 0,
   onHaptic,
 }: BottomNavBarProps) {
@@ -40,7 +37,6 @@ function BottomNavBar({
   const hoveredTabRef = useRef<NavTab | null>(null);
   const activeTabRef = useRef<NavTab>(activeTab);
   const navRectRef = useRef<{ left: number; width: number } | null>(null);
-  const rafRef = useRef<number>(0);
   const didDragRef = useRef(false);
 
   activeTabRef.current = activeTab;
@@ -65,18 +61,7 @@ function BottomNavBar({
     } catch {}
   }, []);
 
-  // Calculate tab key based on horizontal coordinate using cached rect (zero layout thrashing)
-  const getTabFromX = useCallback((clientX: number): NavTab | null => {
-    const rect = navRectRef.current;
-    if (!rect || rect.width <= 0) return null;
-    const relativeX = clientX - rect.left;
-    const clampedX = Math.max(0, Math.min(rect.width - 0.5, relativeX));
-    const tabWidth = rect.width / tabs.length;
-    const index = Math.min(tabs.length - 1, Math.max(0, Math.floor(clampedX / tabWidth)));
-    return tabs[index]?.key || null;
-  }, []);
-
-  // Animate pill position using hardware transforms
+  // Animate pill position using hardware transforms and Apple iOS spring
   const animatePillToTab = useCallback((tabKey: NavTab, fast = false) => {
     if (!pillRef.current || !navRef.current) return;
     const idx = tabs.findIndex(t => t.key === tabKey);
@@ -84,12 +69,12 @@ function BottomNavBar({
 
     const navRect = navRectRef.current || navRef.current.getBoundingClientRect();
     const tabWidth = navRect.width / tabs.length;
-    const targetX = idx * tabWidth + 6; // 6px padding
-    const pillWidth = Math.max(30, tabWidth - 12);
+    const pillWidth = Math.max(34, tabWidth - 10);
+    const targetX = idx * tabWidth + (tabWidth - pillWidth) / 2;
 
     pillRef.current.style.transition = fast
-      ? "transform 0.09s cubic-bezier(0.16, 1, 0.3, 1), width 0.09s ease"
-      : "transform 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), width 0.28s cubic-bezier(0.2, 0.9, 0.2, 1)";
+      ? "transform 0.08s cubic-bezier(0.16, 1, 0.3, 1), width 0.08s ease"
+      : "transform 0.32s cubic-bezier(0.18, 0.9, 0.2, 1), width 0.32s cubic-bezier(0.18, 0.9, 0.2, 1)";
     pillRef.current.style.transform = `translate3d(${targetX}px, 0, 0)`;
     pillRef.current.style.width = `${pillWidth}px`;
   }, []);
@@ -126,18 +111,7 @@ function BottomNavBar({
     }
   }, [onTabChange, triggerHapticSelection]);
 
-  // Move handler for scrubbing: highlights tab and moves pill at 120fps
-  const processMove = useCallback((clientX: number) => {
-    const targetTab = getTabFromX(clientX);
-    if (targetTab && targetTab !== hoveredTabRef.current) {
-      hoveredTabRef.current = targetTab;
-      setHoveredTab(targetTab);
-      animatePillToTab(targetTab, true);
-      triggerHapticSelection();
-    }
-  }, [getTabFromX, animatePillToTab, triggerHapticSelection]);
-
-  // ── Unified Pointer Events (works smoothly for touch, mouse, stylus) ──
+  // ── Unified Smooth Continuous Pointer Dragging (120fps Apple Liquid Glass) ──
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     if (navRef.current) {
@@ -152,34 +126,58 @@ function BottomNavBar({
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
 
-    const targetTab = getTabFromX(e.clientX);
+    const navLeft = navRectRef.current?.left ?? 0;
+    const navWidth = navRectRef.current?.width ?? 390;
+    const tabWidth = navWidth / tabs.length;
+    const pillWidth = Math.max(34, tabWidth - 10);
+
+    const fingerCenter = e.clientX - navLeft;
+    const tabIndex = Math.min(tabs.length - 1, Math.max(0, Math.floor(fingerCenter / tabWidth)));
+    const targetTab = tabs[tabIndex]?.key;
+
     if (targetTab) {
       hoveredTabRef.current = targetTab;
       setHoveredTab(targetTab);
+      // Soft transition to initial touch point
       animatePillToTab(targetTab, true);
-      if (targetTab !== activeTabRef.current) {
-        triggerHapticSelection();
-      } else {
-        triggerHapticImpact("light");
-      }
+      triggerHapticImpact("light");
     }
-  }, [getTabFromX, animatePillToTab, triggerHapticSelection, triggerHapticImpact]);
+  }, [animatePillToTab, triggerHapticImpact]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    if (!isScrubbingRef.current) return;
+    if (!isScrubbingRef.current || !pillRef.current || !navRectRef.current) return;
     didDragRef.current = true;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const clientX = e.clientX;
-    rafRef.current = requestAnimationFrame(() => {
-      processMove(clientX);
-    });
-  }, [processMove]);
+
+    const navLeft = navRectRef.current.left;
+    const navWidth = navRectRef.current.width;
+    const tabWidth = navWidth / tabs.length;
+    const pillWidth = Math.max(34, tabWidth - 10);
+
+    // Continuous 1:1 finger tracking without snapping jumps!
+    const fingerCenter = e.clientX - navLeft;
+    const rawPillX = fingerCenter - pillWidth / 2;
+    const clampedPillX = Math.max(4, Math.min(navWidth - pillWidth - 4, rawPillX));
+
+    // Zero-delay direct GPU transform
+    pillRef.current.style.transition = "none";
+    pillRef.current.style.transform = `translate3d(${clampedPillX}px, 0, 0)`;
+
+    // Softly detect which tab icon should illuminate
+    const tabIndex = Math.min(tabs.length - 1, Math.max(0, Math.floor((clampedPillX + pillWidth / 2) / tabWidth)));
+    const currentCandidate = tabs[tabIndex]?.key;
+
+    if (currentCandidate && currentCandidate !== hoveredTabRef.current) {
+      hoveredTabRef.current = currentCandidate;
+      setHoveredTab(currentCandidate);
+      triggerHapticSelection();
+    }
+  }, [triggerHapticSelection]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLElement>) => {
     if (isScrubbingRef.current) {
       isScrubbingRef.current = false;
       setIsScrubbing(false);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {}
@@ -188,24 +186,19 @@ function BottomNavBar({
       hoveredTabRef.current = null;
       setHoveredTab(null);
 
+      // Smoothly spring into the final tab position!
+      animatePillToTab(destinationTab, false);
+
       if (destinationTab !== activeTabRef.current) {
         onTabChange(destinationTab);
         triggerHapticImpact("medium");
       }
-      animatePillToTab(destinationTab, false);
     }
   }, [onTabChange, triggerHapticImpact, animatePillToTab]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLElement>) => {
     handlePointerUp(e);
   }, [handlePointerUp]);
-
-  // Cleanup RAF
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-50 pointer-events-none flex justify-center pb-safe">
@@ -222,18 +215,18 @@ function BottomNavBar({
             transform: "translateZ(0)",
           }}
           className={`
-            relative w-full h-[66px] rounded-[28px] px-1.5 flex items-center justify-between
+            relative w-full h-[66px] rounded-[28px] px-1 flex items-center justify-between
             select-none cursor-pointer
             ${
               isDark
-                ? "bg-[#0b0c11]/80 border border-white/[0.12] text-white shadow-[0_12px_40px_rgba(0,0,0,0.65),inset_0_0.5px_0_rgba(255,255,255,0.12)]"
+                ? "bg-[#0b0c11]/85 border border-white/[0.12] text-white shadow-[0_12px_40px_rgba(0,0,0,0.65),inset_0_0.5px_0_rgba(255,255,255,0.12)]"
                 : "bg-white/85 border border-black/[0.08] text-[#1C1C1E] shadow-[0_12px_40px_rgba(0,0,0,0.09),inset_0_0.5px_0_rgba(255,255,255,0.8)]"
             }
             backdrop-blur-[45px] backdrop-saturate-[200%]
             transition-colors duration-200
           `}
         >
-          {/* Liquid Glass Pill Indicator */}
+          {/* True Liquid Glass Pill Indicator */}
           <div
             ref={pillRef}
             className={`
@@ -241,10 +234,10 @@ function BottomNavBar({
               ${
                 isDark
                   ? isScrubbing
-                    ? "bg-white/[0.16] border border-white/[0.22] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0.5px_rgba(255,255,255,0.45)]"
-                    : "bg-white/[0.11] border border-white/[0.14] shadow-[0_2px_12px_rgba(0,0,0,0.2),inset_0_0.5px_0.5px_rgba(255,255,255,0.25)]"
+                    ? "bg-white/[0.18] border border-white/[0.25] shadow-[0_4px_24px_rgba(0,0,0,0.4),inset_0_1px_0.5px_rgba(255,255,255,0.5)] scale-y-[1.03]"
+                    : "bg-white/[0.12] border border-white/[0.16] shadow-[0_2px_14px_rgba(0,0,0,0.25),inset_0_0.5px_0.5px_rgba(255,255,255,0.3)]"
                   : isScrubbing
-                    ? "bg-black/[0.09] border border-black/[0.10] shadow-[0_4px_16px_rgba(0,0,0,0.08),inset_0_1px_0.5px_rgba(255,255,255,0.8)]"
+                    ? "bg-black/[0.09] border border-black/[0.10] shadow-[0_4px_16px_rgba(0,0,0,0.08),inset_0_1px_0.5px_rgba(255,255,255,0.8)] scale-y-[1.03]"
                     : "bg-black/[0.05] border border-black/[0.06] shadow-sm"
               }
               backdrop-blur-3xl
@@ -252,30 +245,28 @@ function BottomNavBar({
             style={{ willChange: "transform, width", backfaceVisibility: "hidden" }}
           >
             {/* Specular Liquid Edge Sheen */}
-            <div className="absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent rounded-full opacity-70" />
+            <div className="absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent rounded-full opacity-75" />
           </div>
 
           {tabs.map((tab) => {
             const currentTab = isScrubbing && hoveredTab ? hoveredTab : activeTab;
             const isActive = currentTab === tab.key;
             const Icon = tab.icon;
-            const badgeCount =
-              tab.key === "cart" ? cartCount : tab.key === "bookings" ? bookingsCount : 0;
+            const badgeCount = tab.key === "bookings" ? bookingsCount : 0;
             const label = lang === "RU" ? tab.labelRU : tab.labelUZ;
 
             return (
               <div
                 key={tab.key}
-                onClick={(e) => {
-                  // Fallback for simple clicks if not dragged
+                onClick={() => {
                   if (!didDragRef.current) {
                     handleSelect(tab.key);
                   }
                 }}
                 className={`
                   relative flex-1 h-[54px] rounded-[22px] flex flex-col items-center justify-center
-                  outline-none cursor-pointer select-none transition-transform duration-150
-                  ${isActive ? "font-bold scale-[1.02]" : "font-medium opacity-65 hover:opacity-90"}
+                  outline-none cursor-pointer select-none
+                  ${isActive ? "font-bold" : "font-medium opacity-65 hover:opacity-90"}
                 `}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
@@ -286,8 +277,8 @@ function BottomNavBar({
                     className={
                       isActive
                         ? isDark
-                          ? "text-[#2997FF] drop-shadow-[0_2px_10px_rgba(41,151,255,0.4)]"
-                          : "text-[#0071E3] drop-shadow-[0_2px_8px_rgba(0,113,227,0.3)]"
+                          ? "text-[#2997FF] drop-shadow-[0_2px_10px_rgba(41,151,255,0.45)] scale-105"
+                          : "text-[#0071E3] drop-shadow-[0_2px_8px_rgba(0,113,227,0.3)] scale-105"
                         : isDark
                           ? "text-white/80"
                           : "text-[#1C1C1E]/80"

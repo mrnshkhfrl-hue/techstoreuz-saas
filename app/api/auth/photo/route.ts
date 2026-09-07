@@ -7,25 +7,13 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const telegramId = searchParams.get("telegramId");
+    const isRaw = searchParams.get("raw") === "1";
 
     if (!telegramId) {
       return NextResponse.json(
         { error: "telegramId is required", photoUrl: null },
         { status: 400 }
       );
-    }
-
-    // First check if user already has a saved photoUrl in DB
-    try {
-      const dbUser = await prisma.user.findUnique({
-        where: { telegramId: String(telegramId) },
-        select: { photoUrl: true },
-      });
-      if (dbUser?.photoUrl) {
-        return NextResponse.json({ photoUrl: dbUser.photoUrl });
-      }
-    } catch {
-      // Ignore DB lookup error and continue to Telegram API
     }
 
     // Resolve token: env -> shop in DB -> hardcoded fallback
@@ -51,7 +39,7 @@ export async function GET(req: Request) {
     );
 
     if (!photosRes.ok) {
-      return NextResponse.json({ photoUrl: null });
+      return isRaw ? new Response(null, { status: 404 }) : NextResponse.json({ photoUrl: null });
     }
 
     const photosData = await photosRes.json();
@@ -61,10 +49,10 @@ export async function GET(req: Request) {
       !photosData.result?.photos?.length ||
       !photosData.result.photos[0]?.length
     ) {
-      return NextResponse.json({ photoUrl: null });
+      return isRaw ? new Response(null, { status: 404 }) : NextResponse.json({ photoUrl: null });
     }
 
-    // Get the largest photo (last in the array)
+    // Get the largest photo
     const photoSizes = photosData.result.photos[0];
     const bestPhoto = photoSizes[photoSizes.length - 1];
 
@@ -74,29 +62,42 @@ export async function GET(req: Request) {
     );
 
     if (!fileRes.ok) {
-      return NextResponse.json({ photoUrl: null });
+      return isRaw ? new Response(null, { status: 404 }) : NextResponse.json({ photoUrl: null });
     }
 
     const fileData = await fileRes.json();
 
     if (!fileData.ok || !fileData.result?.file_path) {
-      return NextResponse.json({ photoUrl: null });
+      return isRaw ? new Response(null, { status: 404 }) : NextResponse.json({ photoUrl: null });
     }
 
-    // 3. Construct the download URL
-    const photoUrl = `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
+    const telegramFileUrl = `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
 
-    // Optionally persist in DB for fast future loading
+    // If raw image stream requested, proxy the binary data directly
+    if (isRaw) {
+      const imgRes = await fetch(telegramFileUrl);
+      if (imgRes.ok) {
+        const buffer = await imgRes.arrayBuffer();
+        return new Response(buffer, {
+          headers: {
+            "Content-Type": "image/jpeg",
+            "Cache-Control": "public, max-age=86400, s-maxage=86400",
+          },
+        });
+      }
+      return new Response(null, { status: 404 });
+    }
+
+    // Persist proxy URL in DB
+    const internalPhotoUrl = `/api/auth/photo?telegramId=${telegramId}&raw=1`;
     try {
       await prisma.user.updateMany({
         where: { telegramId: String(telegramId) },
-        data: { photoUrl },
+        data: { photoUrl: internalPhotoUrl },
       });
-    } catch {
-      // Non-blocking
-    }
+    } catch {}
 
-    return NextResponse.json({ photoUrl });
+    return NextResponse.json({ photoUrl: internalPhotoUrl, directUrl: telegramFileUrl });
   } catch (error: any) {
     console.error("[AuthPhoto] Error fetching Telegram photo:", error);
     return NextResponse.json({ photoUrl: null });

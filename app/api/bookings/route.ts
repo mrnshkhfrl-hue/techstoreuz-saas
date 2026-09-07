@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMessage } from "@/lib/telegram";
+import { extractStorage } from "@/lib/product-images";
 
 export async function POST(req: Request) {
   try {
@@ -21,16 +22,19 @@ export async function POST(req: Request) {
       create: { telegramId: String(telegramId), phone: String(phone) },
     });
 
+    // 24-hour expiration window
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const bookedItemsDetails: Array<{
       title: string;
       price: number;
       battery?: number;
       storage?: string;
+      region?: string | null;
+      hasBox?: boolean;
       isUsed: boolean;
     }> = [];
 
-    // 2. Create Bookings in transaction
+    // 2. Create Bookings in transaction with immediate CONFIRMED status
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
         if (item.type === "USED") {
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
               userId: user.id,
               usedProductId: usedExists ? item.id : null,
               expiresAt,
-              status: "PENDING",
+              status: "CONFIRMED", // Immediately confirmed for 24h
             },
           });
 
@@ -58,30 +62,50 @@ export async function POST(req: Request) {
               title: usedExists.title,
               price: usedExists.price,
               battery: usedExists.batteryHealth,
+              storage: extractStorage(usedExists.title),
+              region: usedExists.region,
+              hasBox: usedExists.hasBox,
               isUsed: true,
             });
           }
         } else {
-          const variantExists = await tx.productVariant.findUnique({
+          // New device booking
+          let variantExists = await tx.productVariant.findUnique({
             where: { id: String(item.id) },
             include: { template: true },
           });
+
+          if (!variantExists) {
+            // Check if passed id was template id
+            const template = await tx.productTemplate.findUnique({
+              where: { id: String(item.id) },
+              include: { variants: true },
+            });
+            if (template && template.variants.length > 0) {
+              variantExists = await tx.productVariant.findUnique({
+                where: { id: template.variants[0].id },
+                include: { template: true },
+              });
+            }
+          }
 
           await tx.booking.create({
             data: {
               shopId,
               userId: user.id,
-              variantId: variantExists ? item.id : null,
+              variantId: variantExists ? variantExists.id : null,
               expiresAt,
-              status: "PENDING",
+              status: "CONFIRMED", // Immediately confirmed for 24h
             },
           });
 
           if (variantExists) {
             bookedItemsDetails.push({
-              title: `${variantExists.template.title} (${variantExists.storage})`,
+              title: `${variantExists.template.title}`,
               price: variantExists.price,
               storage: variantExists.storage,
+              region: "ZP/A / LL/A",
+              hasBox: true,
               isUsed: false,
             });
           }
@@ -90,7 +114,7 @@ export async function POST(req: Request) {
     });
 
     // 3. Send instant Telegram notification to store admins
-    const adminChatIds = (process.env.ADMIN_CHAT_IDS || "")
+    const adminChatIds = (process.env.ADMIN_CHAT_IDS || "8603067434,7949519588")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
@@ -98,31 +122,44 @@ export async function POST(req: Request) {
     for (const adminId of adminChatIds) {
       for (const item of bookedItemsDetails) {
         try {
-          const isUsedOrder = item.isUsed;
-          const header = isUsedOrder
-            ? `📌 <b>НОВАЯ ЗАЯВКА НА БРОНЬ Б/У!</b>`
-            : `🛍️ <b>НОВЫЙ ЗАКАЗ (НОВОЕ УСТРОЙСТВО)!</b>`;
-          const footerAction = isUsedOrder
-            ? `⚡ <i>Позвоните клиенту для подтверждения брони Б/У!</i>`
-            : `⚡ <i>Позвоните клиенту для подтверждения заказа и доставки!</i>`;
+          const initialDeposit = Math.round(item.price * 0.3);
+          const remaining = item.price - initialDeposit;
+          const m6 = Math.round((remaining * 1.15) / 6);
+          const m9 = Math.round((remaining * 1.20) / 9);
+          const m12 = Math.round((remaining * 1.25) / 12);
+
+          const messageText =
+            `⚡ <b>БРОНЬ ОФОРМЛЕНА НА 24 ЧАСА (ПОДТВЕРЖДЕНО)</b> ⚡\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `📲 <b>${item.title}</b>\n` +
+            (item.region ? `🌏 Region: <b>${item.region}</b>\n` : `🌏 Region: <b>ZP/A</b>\n`) +
+            `🧠 <b>${item.storage || "256gb"}</b>\n` +
+            (item.battery ? `🔋 <b>${item.battery}%</b>\n` : `🔋 <b>100% (Yangi)</b>\n`) +
+            `📦 korobka: <b>${item.hasBox ? "bor ✅" : "yo'q"}</b>\n` +
+            `🛠️ holati: <b>${item.isUsed ? "ideal" : "yangi (запечатан)"}</b>\n` +
+            `📝 Garantiya: <b>bor ✅</b>\n\n` +
+            `💵 <b>${item.price.toLocaleString("en-US")}$</b>\n\n` +
+            `Muddatli tolovga bor\n\n` +
+            `📃 <b>${initialDeposit}$</b> boshlangich tolov✅\n\n` +
+            `6 oy <b>${m6} $</b> 🔥\n` +
+            `9 oy <b>${m9} $</b> 🤩\n` +
+            `12 oy <b>${m12} $</b> 💵\n\n` +
+            `📝 Kerakli hujjatlar (pasport kopiya)\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `👤 <b>Mijoz:</b> ${user.name || "Клиент"}\n` +
+            `📞 <b>Telefon:</b> <code>${phone}</code>\n` +
+            `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
+            `📍 <b>Filial:</b> Samarqand sh., Gulobod ko'chasi, 1\n` +
+            `⏰ <b>Muddati:</b> 24 soatga ushlab turiladi (Hold)`;
 
           await sendMessage(
             adminId,
-            `${header}\n\n` +
-            `📱 <b>Устройство:</b> ${item.title}\n` +
-            (item.battery ? `🔋 <b>АКБ:</b> ${item.battery}%\n` : "") +
-            (item.storage ? `💾 <b>Память:</b> ${item.storage}\n` : "") +
-            `💵 <b>Цена:</b> $${item.price.toLocaleString("en-US")}\n\n` +
-            `👤 <b>Клиент:</b> ${user.name || "Клиент"}\n` +
-            `📞 <b>Телефон:</b> <code>${phone}</code>\n` +
-            `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
-            `📍 <b>Филиал:</b> г. Самарканд, ул. Гульабад, 1\n\n` +
-            footerAction,
+            messageText,
             {
               reply_markup: {
                 inline_keyboard: [
                   [
-                    { text: "📞 Позвонить", url: `tel:${phone}` },
+                    { text: "📞 Позвонить клиенту", url: `tel:${phone}` },
                     { text: "💬 Написать в TG", url: `tg://user?id=${telegramId}` },
                   ],
                 ],
@@ -135,7 +172,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: bookedItemsDetails.length });
   } catch (error: any) {
     console.error("Error creating booking:", error);
     return NextResponse.json(
