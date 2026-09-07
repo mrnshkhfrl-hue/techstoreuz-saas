@@ -157,7 +157,7 @@ export function extractTelegramUser(): TelegramWebAppUser | null {
       }
 
       const searchParams = new URLSearchParams(window.location.search);
-      const tgIdParam = searchParams.get('tgId') || searchParams.get('userId');
+      const tgIdParam = searchParams.get('tgId') || searchParams.get('userId') || searchParams.get('adminId');
       if (tgIdParam && !isNaN(Number(tgIdParam))) {
         const directUser: TelegramWebAppUser = {
           telegramId: Number(tgIdParam),

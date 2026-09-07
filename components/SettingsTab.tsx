@@ -437,33 +437,44 @@ export default function SettingsTab({
 
         <div className="space-y-2.5">
           {/* Branch 1 */}
-          <div className={`p-3 rounded-xl ${d ? "bg-white/5 border-white/5" : "bg-black/[0.02] border-black/5"} border space-y-1.5`}>
+          <div className={`p-3.5 rounded-xl ${d ? "bg-white/5 border-white/5" : "bg-black/[0.02] border-black/5"} border space-y-2`}>
             <div className="flex items-center justify-between">
               <h4 className={`text-[13px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                {lang === "RU" ? "Главный филиал" : "Bosh filial"}
+                {lang === "RU" ? "Филиал №1 (Главный)" : "1-filial (Bosh)"}
               </h4>
               <span className="text-[10px] bg-[#34C759]/15 text-[#34C759] font-bold px-2 py-0.5 rounded-full border border-[#34C759]/25">
-                09:00 - 20:00
+                09:00 - 21:00
               </span>
             </div>
             <p className={`text-[12px] ${d ? "text-white/60" : "text-[#1C1C1E]/60"} flex items-start gap-1.5`}>
               <MapPin size={13} className="shrink-0 mt-0.5 text-[#FF2D55]" />
               <span>{lang === "RU" ? "г. Самарканд, ул. Гульабад, 1" : "Samarqand sh., Gulobod ko'chasi, 1"}</span>
             </p>
-            <a
-              href="tel:+998772859999"
-              className="inline-flex items-center gap-1.5 text-[12px] text-[#007AFF] font-bold mt-1"
-            >
-              <Phone size={12} />
-              <span>+998 77 285-99-99</span>
-            </a>
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href="tel:+998772859999"
+                className="inline-flex items-center gap-1 text-[12px] text-[#007AFF] font-bold"
+              >
+                <Phone size={12} />
+                <span>+998 77 285-99-99</span>
+              </a>
+              <a
+                href="https://yandex.uz/maps/?text=Самарканд+улица+Гульабад+1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-white/50 hover:text-white underline"
+              >
+                <ExternalLink size={10} />
+                <span>{lang === "RU" ? "На карте" : "Xaritada"}</span>
+              </a>
+            </div>
           </div>
 
           {/* Branch 2 */}
-          <div className={`p-3 rounded-xl ${d ? "bg-white/5 border-white/5" : "bg-black/[0.02] border-black/5"} border space-y-1.5`}>
+          <div className={`p-3.5 rounded-xl ${d ? "bg-white/5 border-white/5" : "bg-black/[0.02] border-black/5"} border space-y-2`}>
             <div className="flex items-center justify-between">
               <h4 className={`text-[13px] font-bold ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                {lang === "RU" ? "Филиал ТЦ «Makon Mall»" : "«Makon Mall» filiali"}
+                {lang === "RU" ? "Филиал №2 (ТЦ «Makon Mall»)" : "2-filial («Makon Mall» SM)"}
               </h4>
               <span className="text-[10px] bg-[#34C759]/15 text-[#34C759] font-bold px-2 py-0.5 rounded-full border border-[#34C759]/25">
                 10:00 - 22:00
@@ -473,13 +484,24 @@ export default function SettingsTab({
               <MapPin size={13} className="shrink-0 mt-0.5 text-[#FF2D55]" />
               <span>{lang === "RU" ? "г. Самарканд, ТЦ «Makon Mall», 1-й этаж" : "Samarqand sh., «Makon Mall» SM, 1-qavat"}</span>
             </p>
-            <a
-              href="tel:+998772859999"
-              className="inline-flex items-center gap-1.5 text-[12px] text-[#007AFF] font-bold mt-1"
-            >
-              <Phone size={12} />
-              <span>+998 77 285-99-99</span>
-            </a>
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href="tel:+998772859999"
+                className="inline-flex items-center gap-1 text-[12px] text-[#007AFF] font-bold"
+              >
+                <Phone size={12} />
+                <span>+998 77 285-99-99</span>
+              </a>
+              <a
+                href="https://yandex.uz/maps/?text=Самарканд+Makon+Mall"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-white/50 hover:text-white underline"
+              >
+                <ExternalLink size={10} />
+                <span>{lang === "RU" ? "На карте" : "Xaritada"}</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>

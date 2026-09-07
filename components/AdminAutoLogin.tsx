@@ -26,13 +26,38 @@ export default function AdminAutoLogin() {
       return;
     }
 
-    const tg = typeof window !== "undefined" ? (window as any).Telegram?.WebApp : null;
-    const tgUser = tg?.initDataUnsafe?.user;
-    const currentId = tgUser?.id ? String(tgUser.id) : null;
+    const getCandidateId = (): string | null => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const qId = params.get("adminId") || params.get("tgId") || params.get("userId");
+        if (qId && qId.trim()) return qId.trim();
+      } catch {}
+
+      try {
+        const cached = sessionStorage.getItem("admin_auth_id");
+        if (cached && cached.trim()) return cached.trim();
+        const tgCached = sessionStorage.getItem("tg_shop_user");
+        if (tgCached) {
+          const parsed = JSON.parse(tgCached);
+          if (parsed?.telegramId) return String(parsed.telegramId);
+        }
+      } catch {}
+
+      const tg = typeof window !== "undefined" ? (window as any).Telegram?.WebApp : null;
+      const tgUser = tg?.initDataUnsafe?.user;
+      if (tgUser?.id) return String(tgUser.id);
+
+      return null;
+    };
+
+    const currentId = getCandidateId();
 
     if (currentId) {
       setDetectedId(currentId);
       if (adminIds.includes(currentId)) {
+        try {
+          sessionStorage.setItem("admin_auth_id", currentId);
+        } catch {}
         setStatus("redirecting");
         window.location.replace(`/admin?adminId=${currentId}`);
         return;

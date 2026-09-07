@@ -13,24 +13,28 @@ export default async function Page({
     : resolvedSearchParams?.shopId;
 
   try {
-    const shop = shopId
-      ? await prisma.shop.findUnique({
-          where: { id: shopId },
-          include: {
-            newProducts: {
-              include: { variants: true },
-            },
-            usedProducts: true,
-          },
-        })
-      : await prisma.shop.findFirst({
-          include: {
-            newProducts: {
-              include: { variants: true },
-            },
-            usedProducts: true,
-          },
-        });
+    const shopInclude = {
+      newProducts: {
+        include: { variants: true },
+      },
+      usedProducts: true,
+      branches: true,
+    };
+
+    let shop = null;
+    if (shopId) {
+      shop = await prisma.shop.findUnique({
+        where: { id: shopId },
+        include: shopInclude,
+      });
+    }
+
+    // Graceful fallback to first shop if shopId is not found or not provided
+    if (!shop) {
+      shop = await prisma.shop.findFirst({
+        include: shopInclude,
+      });
+    }
 
     if (shop) {
       const serializedShop = JSON.parse(JSON.stringify(shop));

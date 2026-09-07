@@ -32,6 +32,7 @@ import ProductBottomSheet from "@/components/ProductBottomSheet";
 import TradeInCalculator from "@/components/TradeInCalculator";
 import OnboardingModal from "@/components/OnboardingModal";
 import Toast from "@/components/Toast";
+import BranchesModal from "@/components/BranchesModal";
 import BottomNavBar, { NavTab } from "@/components/BottomNavBar";
 import SettingsTab from "@/components/SettingsTab";
 import BookingsTab from "@/components/BookingsTab";
@@ -108,6 +109,7 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isTradeInOpen, setIsTradeInOpen] = useState(false);
+  const [isBranchesOpen, setIsBranchesOpen] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
@@ -363,7 +365,41 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
       <main className="px-4 pt-3 min-h-[70vh]">
         {/* ══════════ 1. TAB: CATALOG (ГЛАВНАЯ) ══════════ */}
         {navTab === "catalog" && (
-          <div className="space-y-3.5 animate-in fade-in duration-200">
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {/* Branches Quick Bar */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              transition={tapSpring}
+              onClick={() => setIsBranchesOpen(true)}
+              className={`w-full py-2.5 px-3.5 rounded-2xl flex items-center justify-between text-left cursor-pointer transition-all border ${
+                d
+                  ? "bg-white/[0.04] hover:bg-white/[0.07] border-white/10 text-white/90"
+                  : "bg-white hover:bg-black/[0.02] border-black/10 text-[#1C1C1E] shadow-sm"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="w-7 h-7 rounded-xl bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center shrink-0">
+                  <MapPin size={14} />
+                </div>
+                <div className="truncate">
+                  <span className="text-xs font-bold block truncate leading-tight">
+                    {lang === "RU"
+                      ? "Самарканд • 2 филиала"
+                      : "Samarqand • 2 ta filial"}
+                  </span>
+                  <span className={`text-[10px] block truncate ${d ? "text-white/45" : "text-[#1C1C1E]/55"}`}>
+                    ул. Гульабад, 1 • ТЦ «Makon Mall»
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#007AFF]/15 text-[#007AFF]">
+                  {lang === "RU" ? "Адреса" : "Manzillar"}
+                </span>
+                <ChevronRight size={13} className={d ? "text-white/30" : "text-black/30"} />
+              </div>
+            </motion.button>
+
             {/* Trade-In Express Banner */}
             <motion.div
               whileTap={{ scale: 0.98 }}
@@ -972,6 +1008,17 @@ export default function StorefrontClient({ shop }: StorefrontProps) {
         lang={lang}
         currency={currency}
         currencyRate={shop.currencyRate}
+      />
+
+      {/* ═══════════════════════════════════════════════════
+          BRANCHES MODAL
+          ═══════════════════════════════════════════════════ */}
+      <BranchesModal
+        isOpen={isBranchesOpen}
+        onClose={() => setIsBranchesOpen(false)}
+        isDark={d}
+        lang={lang}
+        branches={shop.branches}
       />
 
       {/* ═══════════════════════════════════════════════════

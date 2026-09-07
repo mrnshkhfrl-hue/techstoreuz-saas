@@ -52,6 +52,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
     include: {
       owner: true,
       admins: { include: { user: true } },
+      branches: true,
       usedProducts: {
         orderBy: {
           id: "desc",

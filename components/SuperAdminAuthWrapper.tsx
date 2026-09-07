@@ -26,17 +26,38 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
       .map(s => s.trim())
       .filter(Boolean);
 
-    const checkAuth = () => {
+    const getCandidateId = (): string | null => {
+      if (typeof window === "undefined") return null;
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const qId = params.get("adminId") || params.get("tgId") || params.get("userId");
+        if (qId && qId.trim()) return qId.trim();
+      } catch {}
+
       const extracted = user || extractTelegramUser();
-      const currentId = extracted?.telegramId
-        ? String(extracted.telegramId)
-        : (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id
-        ? String((window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id)
-        : null;
+      if (extracted?.telegramId) return String(extracted.telegramId);
+
+      const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+      if (tgUser?.id) return String(tgUser.id);
+
+      try {
+        const cachedAdminId = sessionStorage.getItem("superadmin_auth_id") || sessionStorage.getItem("admin_auth_id");
+        if (cachedAdminId && cachedAdminId.trim()) return cachedAdminId.trim();
+      } catch {}
+
+      return null;
+    };
+
+    const checkAuth = () => {
+      const currentId = getCandidateId();
 
       if (currentId) {
         setDetectedId(currentId);
         if (superAdminIds.includes(currentId)) {
+          try {
+            sessionStorage.setItem("superadmin_auth_id", currentId);
+          } catch {}
           setIsAuthorized(true);
           return true;
         }
@@ -47,7 +68,7 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
     // Immediate check
     if (checkAuth()) return;
 
-    // Retry checking for up to 2.5 seconds (25 attempts x 100ms)
+    // Retry checking for up to 2 seconds
     let attempts = 0;
     const interval = setInterval(() => {
       attempts++;
@@ -55,8 +76,10 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
         clearInterval(interval);
         return;
       }
-      if (attempts >= 25) {
+      if (attempts >= 20) {
         clearInterval(interval);
+        const finalCandidate = getCandidateId();
+        if (finalCandidate) setDetectedId(finalCandidate);
         setIsAuthorized(false);
       }
     }, 100);
@@ -76,7 +99,16 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
   }
 
   if (isAuthorized === false) {
-    const finalId = detectedId || user?.telegramId || extractTelegramUser()?.telegramId || "Не определен";
+    const finalId =
+      detectedId ||
+      (typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("adminId") ||
+          new URLSearchParams(window.location.search).get("tgId") ||
+          new URLSearchParams(window.location.search).get("userId")
+        : null) ||
+      user?.telegramId ||
+      extractTelegramUser()?.telegramId ||
+      "Не определен";
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white p-4 text-center">
         <div className="p-8 max-w-sm w-full rounded-[28px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] space-y-4">

@@ -162,8 +162,25 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
       "User";
 
     const storeUserUrl = `${storeUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
-    const superAdminUserUrl = `${superAdminUrl}?tgId=${tgId}&name=${encodeURIComponent(userName)}`;
-    const adminStoreUrl = `${storeUrl}/admin?adminId=${tgId}`;
+    const superAdminUserUrl = `${superAdminUrl}?tgId=${tgId}&adminId=${tgId}&name=${encodeURIComponent(userName)}`;
+    const adminStoreUrl = `${storeUrl}/admin?adminId=${tgId}&tgId=${tgId}`;
+
+    const syncMenuButton = () => {
+      try {
+        fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            menu_button: {
+              type: 'web_app',
+              text: '🛍 Магазин',
+              web_app: { url: storeUrl },
+            },
+          }),
+        }).catch(() => {});
+      } catch {}
+    };
 
     // Helper: Build Main Menu
     const buildMainMenuKeyboard = (lang: string) => {
@@ -212,6 +229,7 @@ export async function handleTelegramWebhook(req: Request, explicitToken?: string
     };
 
     const sendMainMenu = async (lang: string) => {
+      syncMenuButton();
       const isUz = lang === 'uz';
       const welcomeMsg = isUz
         ? `👋 <b>Asosiy menyu</b>\n\n🛍 Pastdagi tugmani bosing va <b>${storeName}</b> do'koniga kiring!`

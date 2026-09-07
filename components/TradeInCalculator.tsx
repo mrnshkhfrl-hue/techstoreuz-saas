@@ -183,19 +183,22 @@ export default function TradeInCalculator({
     setResultCurrency(currency);
   }, [currency]);
 
-  // Load used attempts from localStorage with daily auto-reset
+  // Load used attempts from localStorage with MONTHLY auto-reset
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-      const savedDate = localStorage.getItem("tradein_attempts_date");
-      if (savedDate !== todayStr) {
-        // Daily reset!
-        localStorage.setItem("tradein_attempts_date", todayStr);
+      const currentMonthStr = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+      const savedMonth = localStorage.getItem("tradein_month");
+      const existingAttempts = localStorage.getItem("tradein_attempts_used");
+
+      // Only reset if an earlier month was recorded and has changed
+      if (savedMonth && savedMonth !== currentMonthStr) {
+        localStorage.setItem("tradein_month", currentMonthStr);
         localStorage.setItem("tradein_attempts_used", "0");
         setAttemptsUsed(0);
         setIsLimitExceeded(false);
       } else {
-        const saved = Number(localStorage.getItem("tradein_attempts_used") || "0");
+        localStorage.setItem("tradein_month", currentMonthStr);
+        const saved = Number(existingAttempts || "0");
         setAttemptsUsed(saved);
         if (saved >= 5) {
           setIsLimitExceeded(true);
@@ -206,8 +209,8 @@ export default function TradeInCalculator({
 
   const handleResetAttempts = () => {
     if (typeof window !== "undefined") {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      localStorage.setItem("tradein_attempts_date", todayStr);
+      const currentMonthStr = new Date().toISOString().slice(0, 7);
+      localStorage.setItem("tradein_month", currentMonthStr);
       localStorage.setItem("tradein_attempts_used", "0");
     }
     setAttemptsUsed(0);
@@ -237,14 +240,14 @@ export default function TradeInCalculator({
 
     // Check attempt limit when transitioning to step 5 (Result)
     if (step === 4) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const savedDate = typeof window !== "undefined" ? localStorage.getItem("tradein_attempts_date") : todayStr;
+      const currentMonthStr = new Date().toISOString().slice(0, 7);
+      const savedMonth = typeof window !== "undefined" ? localStorage.getItem("tradein_month") : currentMonthStr;
       let currentSaved = typeof window !== "undefined" ? Number(localStorage.getItem("tradein_attempts_used") || "0") : attemptsUsed;
 
-      if (savedDate !== todayStr) {
+      if (savedMonth !== currentMonthStr) {
         currentSaved = 0;
         if (typeof window !== "undefined") {
-          localStorage.setItem("tradein_attempts_date", todayStr);
+          localStorage.setItem("tradein_month", currentMonthStr);
         }
       }
 
@@ -255,7 +258,7 @@ export default function TradeInCalculator({
         setAttemptsUsed(nextAttempts);
         if (typeof window !== "undefined") {
           localStorage.setItem("tradein_attempts_used", String(nextAttempts));
-          localStorage.setItem("tradein_attempts_date", todayStr);
+          localStorage.setItem("tradein_month", currentMonthStr);
         }
       }
     }
@@ -643,13 +646,13 @@ export default function TradeInCalculator({
                         </motion.div>
 
                         <h2 className={`text-2xl font-bold tracking-tight ${d ? "text-white" : "text-[#1C1C1E]"}`}>
-                          {lang === "RU" ? "Дневной лимит расчетов (5/5)" : "Kunlik hisoblash limiti (5/5)"}
+                          {lang === "RU" ? "Месячный лимит расчетов (5/5)" : "Oylik hisoblash limiti (5/5)"}
                         </h2>
                         
                         <p className={`text-[13px] max-w-[290px] leading-relaxed ${d ? "text-white/60" : "text-[#1C1C1E]/60"}`}>
                           {lang === "RU"
-                            ? "Вы использовали 5 бесплатных расчетов за сегодня. Лимит сбрасывается каждые 24 часа. Вы можете сбросить лимит прямо сейчас или написать менеджеру!"
-                            : "Siz bugungi 5 ta bepul hisobdan foydalandingiz. Limit har 24 soatda yangilanadi. Hozir qayta yangilashingiz yoki menejerga yozishingiz mumkin!"}
+                            ? "Вы использовали 5 бесплатных расчетов за этот месяц. Лимит обновляется каждый месяц. Свяжитесь с менеджером для индивидуальной оценки!"
+                            : "Siz ushbu oydagi 5 ta bepul hisobdan foydalandingiz. Limit har oy yangilanadi. Aniq baholash uchun menejer bilan bog'laning!"}
                         </p>
 
                         <div className="w-full space-y-2.5 pt-2">
@@ -700,8 +703,8 @@ export default function TradeInCalculator({
                           <Sparkles size={12} className="text-emerald-400" />
                           <span>
                             {lang === "RU"
-                              ? `Осталось сегодня: ${Math.max(0, 5 - attemptsUsed)} из 5 расчетов`
-                              : `Bugun qolgan hisoblar: ${Math.max(0, 5 - attemptsUsed)} / 5`}
+                              ? `Осталось в этом месяце: ${Math.max(0, 5 - attemptsUsed)} из 5 расчетов`
+                              : `Bu oyda qolgan hisoblar: ${Math.max(0, 5 - attemptsUsed)} / 5`}
                           </span>
                         </div>
 

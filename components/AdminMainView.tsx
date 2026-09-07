@@ -9,6 +9,7 @@ import AdminCRM, { CustomerItem } from "@/components/AdminCRM";
 import AdminMarketing from "@/components/AdminMarketing";
 import AdminAIParser from "@/components/AdminAIParser";
 import AdminStaffManagement from "@/components/AdminStaffManagement";
+import AdminBranches from "@/components/AdminBranches";
 import {
   ShoppingBag,
   DollarSign,
@@ -39,6 +40,7 @@ type ShopData = {
   admins?: Array<any>;
   usedProducts?: Array<any>;
   newProducts?: Array<any>;
+  branches?: Array<any>;
 };
 
 type AdminMainViewProps = {
@@ -53,6 +55,7 @@ const NAVIGATION_TABS = [
   "Новые",
   "Брони",
   "Клиенты",
+  "Филиалы",
   "ИИ парсер",
   "Команда",
   "Маркетинг",
@@ -473,7 +476,26 @@ export default function AdminMainView({
           )}
 
           {/* ══════════════════════════════════════════════
-              TAB 6: ИИ ПАРСЕР ТЕКСТА
+              TAB 6: ФИЛИАЛЫ МАГАЗИНА
+              ══════════════════════════════════════════════ */}
+          {activeTab === "Филиалы" && (
+            <motion.div
+              key="branches"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="px-5 pt-1"
+            >
+              <AdminBranches
+                shopId={shop.id}
+                initialBranches={shop.branches || []}
+              />
+            </motion.div>
+          )}
+
+          {/* ══════════════════════════════════════════════
+              TAB 7: ИИ ПАРСЕР ТЕКСТА
               ══════════════════════════════════════════════ */}
           {activeTab === "ИИ парсер" && (
             <motion.div

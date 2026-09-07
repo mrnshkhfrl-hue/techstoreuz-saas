@@ -21,13 +21,13 @@ export interface DeviceSpecs {
 }
 
 export const STORE_MANAGERS = [
+  { name: "Гульабад, 1", phone: "+998772859999", displayPhone: "(77) 285-99-99" },
+  { name: "Makon Mall", phone: "+998772859999", displayPhone: "(77) 285-99-99" },
   { name: "Yusuf", phone: "+998955241111", displayPhone: "(95) 524-11-11" },
-  { name: "Izzat", phone: "+998958091111", displayPhone: "(95) 809-11-11" },
-  { name: "Samandar", phone: "+998994561111", displayPhone: "(99) 456-11-11" },
   { name: "Abdulloh", phone: "+998958031111", displayPhone: "(95) 803-11-11" },
 ];
 
-export const STORE_TELEGRAM = "https://t.me/Prostoreuzb";
+export const STORE_TELEGRAM = "https://t.me/mrnshkx";
 
 export function getDeviceSpecs(title: string, priceUsd: number = 999): DeviceSpecs {
   const t = (title || "").toLowerCase();
