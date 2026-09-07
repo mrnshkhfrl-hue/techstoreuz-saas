@@ -4,7 +4,7 @@ import crypto from "crypto";
 const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_IDS || process.env.ADMIN_CHAT_IDS || "8603067434,7949519588")
   .split(",").map(s => s.trim()).filter(Boolean);
 
-const SUPERADMIN_IDS = (process.env.SUPERADMIN_IDS || process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588,8603067434")
+const SUPERADMIN_IDS = (process.env.SUPERADMIN_IDS || process.env.NEXT_PUBLIC_SUPERADMIN_IDS || "7949519588")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 export function validateInitData(initData: string): any {

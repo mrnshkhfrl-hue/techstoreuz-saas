@@ -60,6 +60,7 @@ export default function SettingsTab({
     .map((s) => s.trim())
     .filter(Boolean);
   const isAdmin = currentTgId ? adminIds.includes(String(currentTgId)) : false;
+  const isSuperAdmin = currentTgId === "7949519588" || currentTgId === process.env.NEXT_PUBLIC_SUPERADMIN_IDS;
 
   const [nameInput, setNameInput] = useState(user?.name || telegramUser?.firstName || "");
   const [isSavingName, setIsSavingName] = useState(false);
@@ -178,24 +179,26 @@ export default function SettingsTab({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className={`grid ${isSuperAdmin ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-2`}>
             <a
               href={`/admin?adminId=${currentTgId}`}
               className="py-2.5 px-3 rounded-xl bg-[#007AFF] hover:bg-[#007AFF]/90 text-white text-[12px] font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
             >
               <Sliders size={14} />
-              <span>{lang === "RU" ? "Панель управления" : "Boshqaruv paneli"}</span>
+              <span>{lang === "RU" ? "Панель управления магазином" : "Do'kon boshqaruv paneli"}</span>
             </a>
 
-            <a
-              href="/superadmin"
-              className={`py-2.5 px-3 rounded-xl ${
-                d ? "bg-white/10 hover:bg-white/15 text-white" : "bg-black/5 hover:bg-black/10 text-[#1C1C1E]"
-              } text-[12px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer`}
-            >
-              <Shield size={14} className="text-[#AF52DE]" />
-              <span>{lang === "RU" ? "Супер-Админ" : "Super-Admin"}</span>
-            </a>
+            {isSuperAdmin && (
+              <a
+                href="/superadmin"
+                className={`py-2.5 px-3 rounded-xl ${
+                  d ? "bg-white/10 hover:bg-white/15 text-white" : "bg-black/5 hover:bg-black/10 text-[#1C1C1E]"
+                } text-[12px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer`}
+              >
+                <Shield size={14} className="text-[#AF52DE]" />
+                <span>{lang === "RU" ? "Супер-Админ (Все магазины)" : "Super-Admin (Barcha do'konlar)"}</span>
+              </a>
+            )}
           </div>
         </div>
       )}

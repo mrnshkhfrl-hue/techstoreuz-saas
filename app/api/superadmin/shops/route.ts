@@ -5,8 +5,7 @@ import { validateInitData } from "@/lib/auth";
 const SUPERADMIN_IDS = (
   process.env.SUPERADMIN_IDS ||
   process.env.NEXT_PUBLIC_SUPERADMIN_IDS ||
-  process.env.ADMIN_CHAT_IDS ||
-  "7949519588,8603067434"
+  "7949519588"
 )
   .split(",")
   .map((s) => s.trim())

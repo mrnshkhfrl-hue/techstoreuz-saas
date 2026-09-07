@@ -100,5 +100,5 @@ export default async function AdminPage({ searchParams }: PageProps) {
     );
   }
 
-  return <AdminMainView shop={shop} />;
+  return <AdminMainView shop={shop} currentAdminId={adminId} />;
 }

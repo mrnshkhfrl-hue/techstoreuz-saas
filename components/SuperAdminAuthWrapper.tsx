@@ -17,10 +17,8 @@ export default function SuperAdminAuthWrapper({ children }: { children: React.Re
 
     const superAdminRaw = [
       process.env.NEXT_PUBLIC_SUPERADMIN_IDS,
-      process.env.NEXT_PUBLIC_ADMIN_IDS,
       process.env.SUPERADMIN_IDS,
-      process.env.ADMIN_CHAT_IDS,
-      "7949519588,8603067434"
+      "7949519588",
     ].filter(Boolean).join(",");
 
     const superAdminIds = superAdminRaw

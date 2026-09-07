@@ -6,6 +6,7 @@ import AdminBookingItem from "@/components/AdminBookingItem";
 import AdminAIParser from "@/components/AdminAIParser";
 import AdminAddNewProduct from "@/components/AdminAddNewProduct";
 import AdminAddUsedProduct from "@/components/AdminAddUsedProduct";
+import AdminStaffManagement from "@/components/AdminStaffManagement";
 import {
   ShoppingBag,
   DollarSign,
@@ -13,6 +14,7 @@ import {
   Layers,
   Sparkles,
   Smartphone,
+  Users,
 } from "lucide-react";
 
 type ShopData = {
@@ -20,17 +22,20 @@ type ShopData = {
   name: string;
   currencyRate: number;
   bookings: Array<any>;
+  owner?: any;
+  admins?: Array<any>;
 };
 
 type AdminMainViewProps = {
   shop: ShopData;
+  currentAdminId?: string;
 };
 
-const NAVIGATION_TABS = ["Дашборд", "Новые", "Б/У", "ИИ", "Брони"];
+const NAVIGATION_TABS = ["Дашборд", "Новые", "Б/У", "ИИ", "Брони", "Команда"];
 
 const tapSpring = { type: "spring" as const, stiffness: 400, damping: 17 };
 
-export default function AdminMainView({ shop }: AdminMainViewProps) {
+export default function AdminMainView({ shop, currentAdminId }: AdminMainViewProps) {
   const [activeTab, setActiveTab] = useState("Дашборд");
 
   const activeBookingsCount = shop.bookings.filter(
@@ -60,7 +65,11 @@ export default function AdminMainView({ shop }: AdminMainViewProps) {
             {shop.name}
           </h1>
           <span className="px-2.5 py-1 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/25 text-[#007AFF] text-[10px] font-extrabold uppercase">
-            Владелец
+            {currentAdminId === "7949519588"
+              ? "Супер-Админ"
+              : currentAdminId === shop.owner?.telegramId
+              ? "Владелец"
+              : "Менеджер"}
           </span>
         </div>
       </header>
@@ -257,6 +266,25 @@ export default function AdminMainView({ shop }: AdminMainViewProps) {
             className="px-5 pt-1"
           >
             <AdminAIParser shopId={shop.id} />
+          </motion.div>
+        )}
+
+        {/* ── TAB 6: Команда (Администраторы магазина) ── */}
+        {activeTab === "Команда" && (
+          <motion.div
+            key="team"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="pt-1"
+          >
+            <AdminStaffManagement
+              shopId={shop.id}
+              currentAdminId={currentAdminId || shop.owner?.telegramId || "8603067434"}
+              owner={shop.owner || null}
+              initialAdmins={shop.admins || []}
+            />
           </motion.div>
         )}
         </AnimatePresence>
