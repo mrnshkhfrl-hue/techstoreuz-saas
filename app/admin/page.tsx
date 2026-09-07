@@ -52,6 +52,16 @@ export default async function AdminPage({ searchParams }: PageProps) {
     include: {
       owner: true,
       admins: { include: { user: true } },
+      usedProducts: {
+        orderBy: {
+          id: "desc",
+        },
+      },
+      newProducts: {
+        include: {
+          variants: true,
+        },
+      },
       bookings: {
         orderBy: {
           createdAt: "desc",
@@ -100,5 +110,74 @@ export default async function AdminPage({ searchParams }: PageProps) {
     );
   }
 
-  return <AdminMainView shop={shop} currentAdminId={adminId} />;
+  /* ── 5. Fetch all customers for CRM database (от А до Я) ── */
+  const allUsers = await prisma.user.findMany({
+    include: {
+      bookings: {
+        where: { shopId: shop.id },
+        include: {
+          usedProduct: true,
+          variant: {
+            include: {
+              template: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  const customers = allUsers.map((u) => {
+    const userBookings = u.bookings || [];
+    const completed = userBookings.filter((b) => b.status === "COMPLETED");
+    const active = userBookings.filter((b) => b.status === "CONFIRMED" || b.status === "PENDING");
+    const cancelled = userBookings.filter((b) => b.status === "CANCELLED");
+
+    const totalSpent = completed.reduce((sum, b) => {
+      const p = b.usedProduct?.price || b.variant?.price || 0;
+      return sum + p;
+    }, 0);
+
+    let tier: "VIP" | "REGULAR" | "NEW" = "NEW";
+    if (completed.length >= 2 || totalSpent >= 1500) {
+      tier = "VIP";
+    } else if (completed.length >= 1 || userBookings.length >= 2) {
+      tier = "REGULAR";
+    }
+
+    return {
+      id: u.id,
+      telegramId: u.telegramId,
+      name: u.name || "Без имени",
+      phone: u.phone,
+      photoUrl: u.photoUrl,
+      isPremium: u.isPremium,
+      tier,
+      totalBookings: userBookings.length,
+      completedPurchases: completed.length,
+      activeBookings: active.length,
+      cancelledBookings: cancelled.length,
+      totalSpent,
+      lastActivity: userBookings[0]?.createdAt ? userBookings[0].createdAt.toISOString() : null,
+      history: userBookings.map((b) => ({
+        id: b.id,
+        status: b.status,
+        createdAt: b.createdAt.toISOString(),
+        expiresAt: b.expiresAt ? b.expiresAt.toISOString() : null,
+        productTitle: b.usedProduct?.title || b.variant?.template?.title || "Товар",
+        price: b.usedProduct?.price || b.variant?.price || 0,
+        isUsed: Boolean(b.usedProductId || b.usedProduct),
+        details: b.usedProduct
+          ? `${b.usedProduct.batteryHealth}% АКБ • ${b.usedProduct.region}`
+          : b.variant
+          ? `${b.variant.storage} • ${b.variant.color}`
+          : "",
+      })),
+    };
+  });
+
+  customers.sort((a, b) => b.totalSpent - a.totalSpent || b.totalBookings - a.totalBookings);
+
+  return <AdminMainView shop={shop} currentAdminId={adminId} initialCustomers={customers} />;
 }

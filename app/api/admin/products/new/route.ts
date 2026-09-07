@@ -58,3 +58,66 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const { templateId, variantId, stock, price, title, basePrice } = body;
+
+    // 1. If variantId is given, update variant stock or price
+    if (variantId) {
+      const updatedVariant = await prisma.productVariant.update({
+        where: { id: variantId },
+        data: {
+          ...(stock !== undefined && !isNaN(Number(stock)) ? { stock: Number(stock) } : {}),
+          ...(price !== undefined && !isNaN(Number(price)) ? { price: Number(price) } : {}),
+        },
+      });
+      return NextResponse.json({ success: true, variant: updatedVariant });
+    }
+
+    // 2. If templateId is given, update template info
+    if (templateId) {
+      const updatedTemplate = await prisma.newProductTemplate.update({
+        where: { id: templateId },
+        data: {
+          ...(title ? { title: String(title).trim() } : {}),
+          ...(basePrice !== undefined && !isNaN(Number(basePrice)) ? { basePrice: Number(basePrice) } : {}),
+        },
+        include: { variants: true },
+      });
+      return NextResponse.json({ success: true, template: updatedTemplate });
+    }
+
+    return NextResponse.json({ error: "Укажите templateId или variantId" }, { status: 400 });
+  } catch (error: any) {
+    console.error("Error updating new product:", error);
+    return NextResponse.json(
+      { error: error?.message || "Не удалось обновить товар" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "ID шаблона обязателен" }, { status: 400 });
+    }
+
+    await prisma.newProductTemplate.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting new product template:", error);
+    return NextResponse.json(
+      { error: error?.message || "Не удалось удалить товар" },
+      { status: 500 }
+    );
+  }
+}

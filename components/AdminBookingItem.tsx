@@ -144,32 +144,49 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
 
         {/* Status pill */}
         {booking.status === "PENDING" && (
-          <span className="px-2.5 py-1 rounded-full bg-[#FF9500]/15 border border-[#FF9500]/25 text-[#FF9500] text-[11px] font-bold flex-shrink-0">
-            Ожидает
+          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-bold flex-shrink-0">
+            Ожидает ⏳
+          </span>
+        )}
+        {booking.status === ("CONFIRMED" as any) && (
+          <span className="px-2.5 py-1 rounded-full bg-[#007AFF]/20 border border-[#007AFF]/30 text-[#007AFF] text-[11px] font-bold flex-shrink-0">
+            Активная бронь ⚡
           </span>
         )}
         {booking.status === "COMPLETED" && (
           <span className="px-2.5 py-1 rounded-full bg-[#34C759]/20 border border-[#34C759]/30 text-[#34C759] text-[11px] font-bold flex-shrink-0">
-            Продано
+            Куплено ✅
           </span>
         )}
         {booking.status === "CANCELLED" && (
           <span className="px-2.5 py-1 rounded-full bg-[#FF3B30]/20 border border-[#FF3B30]/30 text-[#FF3B30] text-[11px] font-bold flex-shrink-0">
-            Отменено
+            Отменено ❌
           </span>
         )}
       </div>
 
-      {/* Client Phone & Address Details */}
-      <div className="space-y-1.5 px-1 text-xs">
-        <div className="flex items-center gap-2 text-white/70">
-          <Phone size={13} className="text-white/40 flex-shrink-0" />
-          <span className="font-semibold">{clientPhone}</span>
-        </div>
-        <div className="flex items-start gap-2 text-white/40">
-          <MapPin size={13} className="text-white/30 flex-shrink-0 mt-0.5" />
-          <span className="line-clamp-2 leading-tight">{clientAddress}</span>
-        </div>
+      {/* Client Contact & Actions */}
+      <div className="flex items-center gap-2 pt-1">
+        {clientPhone && clientPhone !== "Не указан" && (
+          <a
+            href={`tel:${clientPhone}`}
+            className="flex-1 py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Phone size={12} className="text-[#34C759]" />
+            <span>Позвонить ({clientPhone})</span>
+          </a>
+        )}
+
+        {rawPhone && rawPhone.replace(/[^\d]/g, "") && (
+          <a
+            href={`https://t.me/+${rawPhone.replace(/[^\d]/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="py-2 px-3 rounded-xl bg-[#007AFF]/20 hover:bg-[#007AFF]/30 border border-[#007AFF]/30 text-[#2997FF] text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+          >
+            <span>Написать в TG</span>
+          </a>
+        )}
       </div>
 
       {/* Product Title & Link */}
@@ -197,7 +214,7 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
       {/* Timer expiration */}
       <div className="flex items-center gap-2 text-xs font-medium text-white/40 px-1">
         <Clock size={14} className="text-[#FF9500]" />
-        <span>До: {formattedDate}</span>
+        <span>Удержание до: {formattedDate}</span>
       </div>
 
       {/* Action buttons */}
@@ -206,7 +223,7 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
           type="button"
           whileTap={{ scale: 0.95 }}
           transition={tapSpring}
-          disabled={isLoading || booking.status !== "PENDING"}
+          disabled={isLoading || (booking.status !== "PENDING" && (booking.status as any) !== "CONFIRMED")}
           onClick={() => handleUpdateStatus("COMPLETE")}
           className={`
             py-3 px-3 rounded-glass-btn text-[12px] font-bold flex items-center justify-center gap-1.5 backdrop-blur-xl
@@ -214,7 +231,7 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
             ${
               booking.status === "COMPLETED"
                 ? "bg-[#34C759]/10 text-[#34C759]/40 border border-[#34C759]/15 cursor-not-allowed"
-                : booking.status === "PENDING"
+                : booking.status === "PENDING" || (booking.status as any) === "CONFIRMED"
                 ? "bg-[#34C759]/20 text-[#34C759] border border-[#34C759]/30 hover:bg-[#34C759]/30 cursor-pointer"
                 : "bg-white/[0.04] text-white/20 border border-white/[0.04] cursor-not-allowed"
             }
@@ -226,14 +243,14 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
           ) : (
             <CheckCircle2 size={14} />
           )}
-          Отметить проданным
+          Куплено (Завершить)
         </motion.button>
 
         <motion.button
           type="button"
           whileTap={{ scale: 0.95 }}
           transition={tapSpring}
-          disabled={isLoading || booking.status !== "PENDING"}
+          disabled={isLoading || (booking.status !== "PENDING" && (booking.status as any) !== "CONFIRMED")}
           onClick={() => handleUpdateStatus("CANCEL")}
           className={`
             py-3 px-3 rounded-glass-btn text-[12px] font-bold flex items-center justify-center gap-1.5 backdrop-blur-xl
@@ -241,7 +258,7 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
             ${
               booking.status === "CANCELLED"
                 ? "bg-[#FF3B30]/10 text-[#FF3B30]/40 border border-[#FF3B30]/15 cursor-not-allowed"
-                : booking.status === "PENDING"
+                : booking.status === "PENDING" || (booking.status as any) === "CONFIRMED"
                 ? "bg-[#FF3B30]/20 text-[#FF3B30] border border-[#FF3B30]/30 hover:bg-[#FF3B30]/30 cursor-pointer"
                 : "bg-white/[0.04] text-white/20 border border-white/[0.04] cursor-not-allowed"
             }
@@ -253,7 +270,7 @@ export default function AdminBookingItem({ booking }: BookingItemProps) {
           ) : (
             <XCircle size={14} />
           )}
-          Отменить
+          Отменить бронь
         </motion.button>
       </div>
     </div>
